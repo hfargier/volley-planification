@@ -1,0 +1,36 @@
+# Politique de cache de JSA Planif.
+#
+# L'hébergement applique par défaut Cache-Control: max-age=31536000 (un an) à
+# tous les .js. C'est le bon réglage pour les bundles de /assets/, dont le nom
+# contient un hash de contenu. Mais appliqué à sw.js, il empêche toute mise à
+# jour : le navigateur conserve l'ancien service worker et ne redécouvre le
+# nouveau qu'au bout de 24 h.
+#
+# Le garde <IfModule> est indispensable : sans mod_headers, une directive
+# Header nue renvoie une erreur 500 et rend le site inaccessible.
+
+<IfModule mod_headers.c>
+
+    # --- Jamais en cache -------------------------------------------------
+    # sw.js         : porte d'entrée des mises à jour, doit toujours être frais.
+    # registerSW.js : injecté par vite-plugin-pwa selon la configuration.
+    # index.html    : référence les bundles hashés, donc doit suivre.
+    <FilesMatch "^(sw\.js|registerSW\.js|index\.html)$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </FilesMatch>
+
+    # --- Cache court -----------------------------------------------------
+    # Le manifest change rarement, mais son nom est stable : pas de cache long.
+    <FilesMatch "^manifest\.json$">
+        Header set Cache-Control "public, max-age=3600"
+    </FilesMatch>
+
+    # Les icônes et le logo ont un nom stable : une journée suffit, sinon une
+    # future mise à jour du logo ne se propagerait jamais.
+    <FilesMatch "^(icon-.*\.png|logo_jsa_tigre\.png|favicon\.svg|icons\.svg)$">
+        Header set Cache-Control "public, max-age=86400"
+    </FilesMatch>
+
+</IfModule>
