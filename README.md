@@ -73,6 +73,35 @@ et prioritaire sur `deploy.config.json` :
 FTP_USER=... FTP_PASSWORD=... FTP_HOST=... npm run deploy
 ```
 
+## Versions et mise à jour automatique
+
+L'app est une **PWA** : installable sur l'écran d'accueil et mise à jour toute
+seule, comme l'app joueur.
+
+Le numéro affiché vient de `version` dans `package.json`. **Il faut l'incrémenter
+à chaque déploiement**, sinon les coachs ne voient pas de quelle version ils
+disposent :
+
+```bash
+npm version patch --no-git-tag-version
+```
+
+Puis `npm run deploy`. Ce qui se passe ensuite côté coach, sans action de sa part :
+
+1. Le service worker vérifie le serveur toutes les 60 secondes, et à chaque
+   retour au premier plan de l'app.
+2. S'il trouve une nouvelle version : toast « Nouvelle version disponible »,
+   puis rechargement au bout de 2,5 s.
+3. Un écouteur `controllerchange` sert de filet si le mécanisme interne échoue.
+
+Le service worker est **cantonné** au dossier de l'app (`scope: "./"`) : il
+n'interfère pas avec les autres applications du domaine.
+
+L'installation mobile se propose via un bouton **INSTALLER**, affiché uniquement
+quand le navigateur le permet et que l'app n'est pas déjà installée. Les icônes
+`icon-192`, `icon-512` et `icon-512-maskable` sont générées à partir du logo :
+ne pas les remplacer par le logo brut, il n'est pas carré (252×256).
+
 ## Points de vigilance
 
 - **Aucune authentification côté API** : n'importe quel appel peut lire ou

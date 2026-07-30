@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
-import { UserCircle, Lock, LogIn } from 'lucide-react';
+import { UserCircle, Lock, LogIn, Download } from 'lucide-react';
 import type { UserData } from './types';
 import { apiUrl, fetchJson } from './api';
 
 interface LoginPageProps {
   onLogin: (userData: UserData) => void;
+  version?: string;
+  dateBuild?: string;
+  peutInstaller?: boolean;
+  onInstaller?: () => void;
 }
 
 interface LoginResponse {
@@ -12,7 +16,13 @@ interface LoginResponse {
   user: UserData;
 }
 
-export default function LoginPage({ onLogin }: LoginPageProps) {
+export default function LoginPage({
+  onLogin,
+  version,
+  dateBuild,
+  peutInstaller,
+  onInstaller,
+}: LoginPageProps) {
   const [pseudo, setPseudo] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -75,6 +85,18 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             SE CONNECTER <LogIn size={18} />
           </button>
         </form>
+
+        {peutInstaller && (
+          <button className="btn-install-login" onClick={onInstaller}>
+            <Download size={16} /> INSTALLER L'APPLICATION
+          </button>
+        )}
+
+        {version && (
+          <p className="login-version" title={dateBuild ? `Build du ${dateBuild}` : undefined}>
+            v{version}
+          </p>
+        )}
       </div>
     </div>
   );

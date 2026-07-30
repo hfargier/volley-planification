@@ -7,12 +7,15 @@ import LoginPage from './LoginPage';
 import MasterAdmin from './MasterAdmin';
 import PreparationSeance from './PreparationSeance'; // Nouvel import
 import ToastHost from './ToastHost';
-import { Library, PlusCircle, LogOut, Layout, BookOpen, Settings } from 'lucide-react';
+import { Library, PlusCircle, LogOut, Layout, BookOpen, Settings, Download } from 'lucide-react';
 import './App.css';
 import type { UserData } from './types';
 import { getStoredUser } from './session';
+import { usePwa } from './usePwa';
 
 const App: React.FC = () => {
+  // Appelé avant tout retour anticipé : les hooks doivent s'exécuter à chaque rendu.
+  const { peutInstaller, installer, version, dateBuild } = usePwa();
   const [user, setUser] = useState<UserData | null>(() => getStoredUser());
   const [view, setView] = useState<'list' | 'studio' | 'viewer' | 'adminMaster' | 'prepSeance'>('list');
   const [coachTab, setCoachTab] = useState<'active' | 'catalog'>('active');
@@ -33,7 +36,13 @@ const App: React.FC = () => {
   if (!user) {
     return (
       <>
-        <LoginPage onLogin={(userData) => setUser(userData)} />
+        <LoginPage
+          onLogin={(userData) => setUser(userData)}
+          version={version}
+          dateBuild={dateBuild}
+          peutInstaller={peutInstaller}
+          onInstaller={installer}
+        />
         <ToastHost />
       </>
     );
@@ -63,6 +72,9 @@ const App: React.FC = () => {
           <div className="logo-text-stack">
             <span className="jsa-brand">JSA</span>
             <span className="jsa-subtitle">PLANIF</span>
+            <span className="app-version" title={`Build du ${dateBuild}`}>
+              v{version}
+            </span>
           </div>
         </div>
         
@@ -91,6 +103,15 @@ const App: React.FC = () => {
           )}
 
           <div className="user-profile-nav">
+            {peutInstaller && (
+              <button
+                className="nav-pill btn-install-app"
+                onClick={installer}
+                title="Installer JSA Planif sur cet appareil"
+              >
+                <Download size={18} /> INSTALLER
+              </button>
+            )}
             <span className="user-name-tag">{user.prenom} <small>({user.role})</small></span>
             <button className="nav-pill btn-logout" onClick={handleLogout} title="Déconnexion">
               <LogOut color="#ff0000" size={18} />
