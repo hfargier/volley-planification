@@ -5,6 +5,8 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  base: '/volley-planif/', // Indique à Vite que le projet est dans ce sous-dossier
-  // ... le reste de ta config
+  // Base RELATIVE : le même build fonctionne quel que soit le sous-dossier
+  // d'hébergement (/volley-planif/ comme /jsawebapp/volley-planif/).
+  // Avec une base absolue, les assets étaient cherchés à la racine du domaine.
+  base: './',
 });

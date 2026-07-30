@@ -1,0 +1,8 @@
+{
+  "user": "identifiant_ftp",
+  "password": "mot_de_passe_ftp",
+  "host": "ftp.exemple.fr",
+  "port": 21,
+  "remoteRootsApp": ["/volley-planif/", "/jsawebapp/volley-planif/"],
+  "remoteRootApi": "/API/"
+}

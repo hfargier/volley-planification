@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+# Secrets : jamais dans le dépôt (voir les fichiers .example correspondants)
+api/config.php
+deploy.config.json
+
+# Historique des versions d'API déployées
+backups/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
