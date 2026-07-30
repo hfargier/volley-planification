@@ -552,12 +552,16 @@ case 'save_planif_equipe':
                 foreach ($cycle['semaines'] as $sem) {
                     if (empty($sem['themes'])) continue;
                     foreach ($sem['themes'] as $th) {
-                        $stTh = $pdo->prepare("INSERT INTO jsa_planif_semaine_themes (cycle_id, num_semaine, theme_id) VALUES (?, ?, ?)");
-                        $stTh->execute([$cycleId, $sem['num'], $th['id']]);
+                        $sousThemes = array_map('intval', $th['sous_themes'] ?? []);
+                        // On alimente AUSSI sous_themes_ids : c'est cette colonne que
+                        // lisent get_full_modele et get_full_planif_equipe. Sans elle,
+                        // les sous-themes restaient invisibles dans le Studio.
+                        $stTh = $pdo->prepare("INSERT INTO jsa_planif_semaine_themes (cycle_id, num_semaine, theme_id, sous_themes_ids) VALUES (?, ?, ?, ?)");
+                        $stTh->execute([$cycleId, $sem['num'], $th['id'], json_encode($sousThemes)]);
                         $sThId = $pdo->lastInsertId();
-                        if (!empty($th['sous_themes'])) {
+                        if (!empty($sousThemes)) {
                             $stSt = $pdo->prepare("INSERT INTO jsa_planif_theme_details (semaine_theme_id, sous_theme_id) VALUES (?, ?)");
-                            foreach ($th['sous_themes'] as $st) $stSt->execute([$sThId, $st]);
+                            foreach ($sousThemes as $st) $stSt->execute([$sThId, $st]);
                         }
                     }
                 }
@@ -846,8 +850,10 @@ case 'update_planif_date':
                 $stT = $pdo->prepare("SELECT * FROM jsa_planif_semaine_themes WHERE cycle_id = ?");
                 $stT->execute([$c['id']]);
                 while ($t = $stT->fetch(PDO::FETCH_ASSOC)) {
-                    $insT = $pdo->prepare("INSERT INTO jsa_planif_equipe_themes (cycle_id, num_semaine, theme_id) VALUES (?, ?, ?)");
-                    $insT->execute([$newCId, $t['num_semaine'], $t['theme_id']]);
+                    // sous_themes_ids doit suivre la copie, sinon la planif d'equipe
+                    // perd l'affichage de ses sous-themes dans le Studio.
+                    $insT = $pdo->prepare("INSERT INTO jsa_planif_equipe_themes (cycle_id, num_semaine, theme_id, sous_themes_ids) VALUES (?, ?, ?, ?)");
+                    $insT->execute([$newCId, $t['num_semaine'], $t['theme_id'], $t['sous_themes_ids'] ?? '[]']);
                     $newTId = $pdo->lastInsertId();
                     $pdo->exec("INSERT INTO jsa_planif_equipe_theme_details (equipe_theme_id, sous_theme_id) SELECT $newTId, sous_theme_id FROM jsa_planif_theme_details WHERE semaine_theme_id = {$t['id']}");
                 }
