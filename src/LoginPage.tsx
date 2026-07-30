@@ -93,7 +93,10 @@ export default function LoginPage({
         )}
 
         {version && (
-          <p className="login-version" title={dateBuild ? `Build du ${dateBuild}` : undefined}>
+          <p
+            className="login-version"
+            title={dateBuild ? `Version mise en ligne le ${dateBuild}` : undefined}
+          >
             v{version}
           </p>
         )}

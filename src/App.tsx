@@ -72,7 +72,7 @@ const App: React.FC = () => {
           <div className="logo-text-stack">
             <span className="jsa-brand">JSA</span>
             <span className="jsa-subtitle">PLANIF</span>
-            <span className="app-version" title={`Build du ${dateBuild}`}>
+            <span className="app-version" title={`Version mise en ligne le ${dateBuild}`}>
               v{version}
             </span>
           </div>

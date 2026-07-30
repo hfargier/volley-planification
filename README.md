@@ -78,15 +78,19 @@ FTP_USER=... FTP_PASSWORD=... FTP_HOST=... npm run deploy
 L'app est une **PWA** : installable sur l'écran d'accueil et mise à jour toute
 seule, comme l'app joueur.
 
-Le numéro affiché vient de `version` dans `package.json`. **Il faut l'incrémenter
-à chaque déploiement**, sinon les coachs ne voient pas de quelle version ils
-disposent :
+Le numéro de version est **automatique** : il est dérivé de l'instant du build,
+au format `AA.MM.JJ-HHMM` (ex. `v26.07.30-1632`). Comme `npm run deploy`
+reconstruit systématiquement, il correspond à l'heure de mise en ligne. Rien à
+incrémenter à la main, et l'infobulle donne la date en clair.
 
-```bash
-npm version patch --no-git-tag-version
-```
+Le champ `version` de `package.json` n'est donc plus affiché ; il ne sert qu'à
+npm.
 
-Puis `npm run deploy`. Ce qui se passe ensuite côté coach, sans action de sa part :
+Conséquence assumée : chaque déploiement produit un bundle différent même sans
+changement de code, donc tous les postes se rechargent. C'est voulu — un
+déploiement doit se propager.
+
+Après `npm run deploy`, côté coach et sans action de sa part :
 
 1. Le service worker vérifie le serveur toutes les 60 secondes, et à chaque
    retour au premier plan de l'app.

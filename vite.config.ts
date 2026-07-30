@@ -1,14 +1,25 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
-import { readFileSync } from 'node:fs';
 
-const { version } = JSON.parse(readFileSync('./package.json', 'utf-8'));
+// Version dérivée de l'instant du build. Comme `npm run deploy` reconstruit
+// systématiquement, elle correspond à l'heure de mise en ligne : plus rien à
+// incrémenter à la main, et le coach lit directement de quand date sa version.
+const maintenant = new Date();
+const deuxChiffres = (n: number) => String(n).padStart(2, '0');
 
-const buildDate = new Date().toLocaleString('fr-FR', {
+// Format compact et triable : AA.MM.JJ-HHMM
+const appVersion = [
+  `${deuxChiffres(maintenant.getFullYear() % 100)}.${deuxChiffres(maintenant.getMonth() + 1)}.${deuxChiffres(maintenant.getDate())}`,
+  `${deuxChiffres(maintenant.getHours())}${deuxChiffres(maintenant.getMinutes())}`,
+].join('-');
+
+// Format lisible pour l'infobulle
+const buildDate = maintenant.toLocaleString('fr-FR', {
+  weekday: 'long',
   day: '2-digit',
-  month: '2-digit',
-  year: '2-digit',
+  month: 'long',
+  year: 'numeric',
   hour: '2-digit',
   minute: '2-digit',
 });
@@ -45,7 +56,7 @@ export default defineConfig({
     }),
   ],
   define: {
-    __APP_VERSION__: JSON.stringify(version),
+    __APP_VERSION__: JSON.stringify(appVersion),
     __BUILD_DATE__: JSON.stringify(buildDate),
   },
 });
