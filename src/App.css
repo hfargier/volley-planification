@@ -748,6 +748,267 @@ to { opacity: 1; transform: translateY(0); }
   font-weight: bold;
 }
 
+/* ==========================================================
+   FENÊTRE DE CONFIRMATION DESTRUCTIVE (remplace window.confirm)
+   ========================================================== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.75);
+  animation: modal-fade 0.15s ease-out;
+}
+
+@keyframes modal-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.modal-danger {
+  width: 100%;
+  max-width: 440px;
+  background: #1e1e1e;
+  border: 1px solid #3a3a3a;
+  border-top: 4px solid #ff3b30;
+  border-radius: 12px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+}
+
+.modal-danger-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 18px;
+  border-bottom: 1px solid #2c2c2c;
+}
+.modal-danger-header svg:first-child { color: #ff3b30; flex-shrink: 0; }
+.modal-danger-header h3 {
+  flex: 1;
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: #fff;
+}
+
+.modal-close {
+  display: flex;
+  background: transparent;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  transition: color 0.2s;
+}
+.modal-close:hover:not(:disabled) { color: #fff; }
+.modal-close:disabled { cursor: not-allowed; opacity: 0.4; }
+
+.modal-danger-body { padding: 18px; }
+
+.modal-target-recap {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  background: #161616;
+  border-left: 3px solid var(--jsa-yellow);
+  border-radius: 6px;
+}
+.modal-target-recap strong {
+  color: var(--jsa-yellow);
+  font-size: 0.95rem;
+  font-weight: 900;
+}
+.modal-target-recap span { color: #888; font-size: 0.7rem; font-weight: 700; }
+
+.modal-danger-warning {
+  margin: 0 0 16px;
+  color: #bbb;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.modal-danger-warning strong { color: #ff8a80; }
+
+.modal-confirm-label {
+  display: block;
+  margin-bottom: 6px;
+  color: #888;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+.modal-confirm-label code {
+  color: var(--jsa-yellow);
+  background: rgba(255, 204, 0, 0.1);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 900;
+}
+
+.modal-confirm-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #141414;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 800;
+  transition: border-color 0.2s;
+}
+.modal-confirm-input:focus-visible { outline: none; border-color: #ff3b30; }
+.modal-confirm-input:disabled { opacity: 0.5; }
+
+.modal-danger-footer {
+  display: flex;
+  gap: 10px;
+  padding: 14px 18px;
+  background: #191919;
+  border-top: 1px solid #2c2c2c;
+}
+
+.btn-modal-cancel {
+  flex: 1;
+  padding: 11px;
+  background: transparent;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  color: #aaa;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+.btn-modal-cancel:hover:not(:disabled) { color: #fff; border-color: #666; }
+
+.btn-modal-delete {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px;
+  background: #ff3b30;
+  border: 1px solid #ff3b30;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: filter 0.2s;
+}
+.btn-modal-delete:hover:not(:disabled) { filter: brightness(1.15); }
+/* Désactivé tant que le nom n'est pas recopié */
+.btn-modal-delete:disabled {
+  background: #3a2726;
+  border-color: #4a2f2d;
+  color: #8a6b68;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-backdrop { animation: none; }
+}
+
+/* ==========================================================
+   TOASTS (notifications non bloquantes, remplacent window.alert)
+   ========================================================== */
+.toast-host {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: max-content;
+  max-width: min(92vw, 460px);
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #1e1e1e;
+  border: 1px solid #333;
+  border-left: 4px solid #555;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  color: #eee;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.35;
+  pointer-events: auto;
+  animation: toast-in 0.22s ease-out;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.toast-success { border-left-color: #2ecc71; }
+.toast-success svg { color: #2ecc71; flex-shrink: 0; }
+
+.toast-error { border-left-color: #ff3b30; }
+.toast-error svg { color: #ff3b30; flex-shrink: 0; }
+
+.toast-text { flex: 1; }
+
+.toast-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: color 0.2s;
+}
+.toast-close:hover { color: #fff; }
+
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+}
+
+/* Alerte de synchronisation des notes saisies sur le terrain */
+.score-sync-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 12px;
+  padding: 10px 14px;
+  background: rgba(255, 0, 0, 0.12);
+  border: 1px solid rgba(255, 0, 0, 0.45);
+  border-left: 4px solid #ff3b30;
+  border-radius: 8px;
+  color: #ffb3ae;
+  font-size: 0.8rem;
+  font-weight: bold;
+  line-height: 1.3;
+}
+
+.score-sync-error svg {
+  flex-shrink: 0;
+  color: #ff3b30;
+}
+
 .header-inputs-group {
   display: flex;
   flex-direction: column;
@@ -1075,7 +1336,7 @@ to { opacity: 1; transform: translateY(0); }
   .team-selector-premium {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
     width: 100%;
     background: #222;
     padding: 15px;
@@ -1083,7 +1344,156 @@ to { opacity: 1; transform: translateY(0); }
     border: 1px solid var(--jsa-yellow);
     margin-top: 10px;
   }
-  
+
+  /* --- Copie d'un modèle vers une équipe (choix équipe + saison) --- */
+  .copy-field { display: flex; flex-direction: column; gap: 5px; }
+
+  .copy-field-label {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 0.6rem; font-weight: 900; letter-spacing: 1px;
+    color: #888; text-transform: uppercase;
+  }
+  .copy-field-label svg { color: var(--jsa-yellow); }
+
+  .copy-select {
+    width: 100%;
+    background: #1a1a1a;
+    border: 1px solid #3a3a3a;
+    color: var(--jsa-yellow);
+    font-size: 0.8rem;
+    font-weight: 900;
+    padding: 9px 11px;
+    border-radius: 8px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .copy-select:hover { border-color: #555; }
+  .copy-select:focus-visible {
+    outline: none;
+    border-color: var(--jsa-yellow);
+  }
+
+  /* --- Suppression d'une planif --- */
+  .planif-card { position: relative; }
+
+  .btn-delete-planif {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    /* Volontairement effacé : action destructive, on ne l'invite pas au clic */
+    color: #4a4a4a;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s, background 0.2s;
+  }
+
+  .planif-card:hover .btn-delete-planif { color: #777; }
+
+  .btn-delete-planif:hover {
+    color: #ff4444;
+    border-color: rgba(255, 68, 68, 0.5);
+    background: rgba(255, 68, 68, 0.1);
+  }
+
+  .btn-delete-planif:disabled { cursor: wait; color: #666; }
+
+  /* --- Identite d'une planif dans MES EQUIPES --- */
+  .planif-identity {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+  }
+
+  .planif-team-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255, 204, 0, 0.12);
+    border: 1px solid rgba(255, 204, 0, 0.35);
+    color: var(--jsa-yellow);
+    font-size: 0.65rem;
+    font-weight: 900;
+    letter-spacing: 1px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+
+  .planif-created {
+    display: block;
+    margin-top: 8px;
+    color: #666;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .copy-input {
+    width: 100%;
+    box-sizing: border-box;
+    background: #1a1a1a;
+    border: 1px solid #3a3a3a;
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 900;
+    padding: 9px 11px;
+    border-radius: 8px;
+    text-transform: uppercase;
+    transition: border-color 0.2s;
+  }
+  .copy-input::placeholder { color: #555; font-weight: 700; }
+  .copy-input:hover { border-color: #555; }
+  .copy-input:focus-visible {
+    outline: none;
+    border-color: var(--jsa-yellow);
+  }
+
+  .copy-actions { display: flex; gap: 8px; margin-top: 2px; }
+
+  .btn-copy-confirm {
+    flex: 1;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    background: var(--jsa-yellow);
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.75rem;
+    font-weight: 900;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: filter 0.2s;
+  }
+  .btn-copy-confirm:hover { filter: brightness(1.15); }
+
+  /* Bouton fantôme : discret par défaut, rouge au survol (plus de bloc blanc) */
+  .btn-copy-cancel {
+    display: flex; align-items: center; justify-content: center;
+    width: 40px;
+    background: transparent;
+    color: #888;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s, background 0.2s;
+  }
+  .btn-copy-cancel:hover {
+    color: #ff4444;
+    border-color: #ff4444;
+    background: rgba(255, 68, 68, 0.08);
+  }
+
   .selector-group {
     display: flex;
     justify-content: space-between;

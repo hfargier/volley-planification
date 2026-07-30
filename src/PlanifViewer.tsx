@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, ListCheck, Crosshair, Info, ArrowLeft, Loader2 } from 'lucide-react';
 import './App.css';
+import { apiUrl, fetchJson } from './api';
 
 interface PlanifViewerProps {
   planifId: number;
@@ -8,8 +9,50 @@ interface PlanifViewerProps {
   isTeamPlanif?: boolean;
 }
 
+interface ViewerObjectif {
+  id: number;
+  titre: string;
+  description?: string;
+  secteur_id: number;
+  nom_secteur: string;
+}
+
+interface ViewerTheme {
+  id: number;
+  nom: string;
+  nom_secteur: string;
+  secteur_id: number;
+  sous_themes_selectionnes: string[];
+  conseil_coach?: string;
+}
+
+interface ViewerSemaine {
+  num: number | string;
+  themes_details: ViewerTheme[];
+}
+
+interface ViewerCycle {
+  objectifs_selectionnes: ViewerObjectif[];
+  semaines: ViewerSemaine[];
+}
+
+interface ViewerData {
+  nom: string;
+  nom_equipe?: string;
+  saison?: string;
+  niveau?: string;
+  cycles: ViewerCycle[];
+  error?: string;
+}
+
+interface GroupedObjectifs {
+  secteur_id: number;
+  nom_secteur: string;
+  items: ViewerObjectif[];
+}
+
 const PlanifViewer: React.FC<PlanifViewerProps> = ({ planifId, onBack, isTeamPlanif = true }) => {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<ViewerData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeCycleIndex, setActiveCycleIndex] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -19,9 +62,8 @@ const PlanifViewer: React.FC<PlanifViewerProps> = ({ planifId, onBack, isTeamPla
       setLoading(true);
       try {
         const action = isTeamPlanif ? 'get_full_planif_equipe' : 'get_full_modele';
-        const url = `https://seme-et-tisse.fr/API/api_volley_seance.php?action=${action}&id=${planifId}&t=${Date.now()}`;
-        const res = await fetch(url);
-        const result = await res.json();
+        const url = apiUrl(action, { id: planifId }, { cacheBust: true });
+        const result = await fetchJson<ViewerData>(url);
         if (result && !result.error) setData(result);
       } catch (err) { console.error(err); } finally { setLoading(false); }
     };
@@ -40,7 +82,7 @@ const PlanifViewer: React.FC<PlanifViewerProps> = ({ planifId, onBack, isTeamPla
   const currentCycle = data.cycles[activeCycleIndex];
 
   // --- LOGIQUE DE REGROUPEMENT DES OBJECTIFS ---
-  const groupedObjectifs = currentCycle.objectifs_selectionnes?.reduce((acc: any, obj: any) => {
+  const groupedObjectifs = currentCycle.objectifs_selectionnes?.reduce<Record<number, GroupedObjectifs>>((acc, obj) => {
     const key = obj.secteur_id;
     if (!acc[key]) {
       acc[key] = {
@@ -72,7 +114,7 @@ const PlanifViewer: React.FC<PlanifViewerProps> = ({ planifId, onBack, isTeamPla
       <div className="tabs-wrapper">
         <button className="nav-arrow left" onClick={() => scroll('left')}><ChevronLeft size={20} /></button>
         <div className="cycles-nav-tabs" ref={scrollRef}>
-          {data.cycles.map((_: any, idx: number) => (
+          {data.cycles.map((_, idx: number) => (
             <button 
               key={idx} 
               className={`cycle-tab-btn ${activeCycleIndex === idx ? 'active' : ''}`} 
@@ -91,13 +133,13 @@ const PlanifViewer: React.FC<PlanifViewerProps> = ({ planifId, onBack, isTeamPla
         <section className="viewer-section" style={{ marginBottom: '30px' }}>
             <h2 className="section-title"><Crosshair size={22} className="text-yellow" /> OBJECTIFS DU CYCLE <Crosshair size={22} className="text-yellow" /></h2>
           <div className="objectifs-by-sector-container">
-            {objectifsSecteurs.map((group: any, idx: number) => (
+            {objectifsSecteurs.map((group, idx: number) => (
               <div key={idx} className={`obj-group-card s-border-${group.secteur_id}`}>
                 <span className={`mini-secteur-label s-${group.secteur_id}`}>
                   {group.nom_secteur}
                 </span>
                 <div >
-                  {group.items.map((item: any, i: number) => (
+                  {group.items.map((item, i: number) => (
                     <div key={i} className="obj-group-item">
                       <strong>• {item.titre}</strong>
                     </div>
@@ -113,7 +155,7 @@ const PlanifViewer: React.FC<PlanifViewerProps> = ({ planifId, onBack, isTeamPla
           <h2 className="section-title"><ListCheck size={22} className="text-yellow" /> DÉTAIL DES SEMAINES <ListCheck size={22} className="text-yellow" /></h2>
           <div className="weeks-vertical-list">
             {[1, 2, 3].map((numSem) => {
-              const semaine = currentCycle.semaines?.find((s: any) => parseInt(s.num) === numSem);
+              const semaine = currentCycle.semaines?.find((s) => Number(s.num) === numSem);
               const mainSecteurId = semaine?.themes_details?.[0]?.secteur_id || 0;
 
               return (
@@ -125,8 +167,8 @@ const PlanifViewer: React.FC<PlanifViewerProps> = ({ planifId, onBack, isTeamPla
   <div className="week-num-large">{numSem}</div>
 </div>
                   <div className="week-main-content">
-                    {semaine?.themes_details?.map((th: any, tIdx: number) => {
-                      const objectifLie = currentCycle.objectifs_selectionnes?.find((o: any) => o.secteur_id === th.secteur_id);
+                    {semaine?.themes_details?.map((th, tIdx: number) => {
+                      const objectifLie = currentCycle.objectifs_selectionnes?.find((o) => o.secteur_id === th.secteur_id);
 
                       return (
                         <div key={tIdx} className={`theme-viewer-detail-card s-border-${th.secteur_id}`}>

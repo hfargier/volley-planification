@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ArrowLeft,
   Loader2,
@@ -7,86 +7,178 @@ import {
   Crosshair,
   Volleyball,
   Lightbulb,
+  WifiOff,
 } from 'lucide-react';
 import './App.css';
+import { apiUrl, fetchJson } from './api';
+import type { ApiMutationResult } from './types';
+
+// --- HELPERS SEMAINE ISO 8601 ---
+const getISOWeek = (d: Date) => {
+  const date = new Date(d.getTime());
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+  const week1 = new Date(date.getFullYear(), 0, 4);
+  return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+};
+
+// L'année ISO peut différer de l'année civile fin décembre / début janvier.
+const getISOWeekYear = (d: Date) => {
+  const date = new Date(d.getTime());
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+  return date.getFullYear();
+};
+
+// Une année ISO compte 52 ou 53 semaines (2026 en compte 53).
+// Le 28 décembre tombe toujours dans la dernière semaine ISO de l'année.
+const isoWeeksInYear = (year: number) => getISOWeek(new Date(year, 11, 28));
 
 interface PreparationSeanceProps {
   planifId: number;
   onBack: () => void;
 }
 
+interface SeanceObjectif {
+  id: number;
+  titre: string;
+  description?: string;
+  statut?: string | number;
+  secteur_id: number;
+  secteur_nom: string;
+}
+
+interface SeanceTheme {
+  id: number;
+  nom: string;
+  statut?: string | number;
+  secteur_id: number;
+  secteur_nom: string;
+  sous_themes_selectionnes: string[];
+  conseil_coach?: string;
+}
+
+interface SeanceData {
+  isVacances?: boolean;
+  currentCycle?: number;
+  currentWeek?: number;
+  objectifs?: SeanceObjectif[];
+  themes?: SeanceTheme[];
+}
+
 const PreparationSeance: React.FC<PreparationSeanceProps> = ({ planifId, onBack }) => {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<SeanceData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [scoreError, setScoreError] = useState<string | null>(null);
+  const saveTimers = useRef<Record<string, number>>({});
 
-  // --- LOGIQUE SEMAINE ISO ---
-  const getISOWeek = (d: Date) => {
-    const date = new Date(d.getTime());
-    date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
-    const week1 = new Date(date.getFullYear(), 0, 4);
-    return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
-  };
-
-  const [calState, setCalState] = useState({
-    week: getISOWeek(new Date()),
-    year: new Date().getFullYear(),
+  const [calState, setCalState] = useState(() => {
+    const now = new Date();
+    return { week: getISOWeek(now), year: getISOWeekYear(now) };
   });
-/*
-  const getWeekRangeLabel = (w: number, y: number) => {
-    const d = new Date(y, 0, 1 + (w - 1) * 7);
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(d.getFullYear(), d.getMonth(), diff);
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    return `Du ${monday.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} au ${sunday.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`;
-  };*/
+
+  // Annulation des envois de score en attente si on quitte la vue
+  useEffect(() => {
+    const timers = saveTimers.current;
+    return () => {
+      Object.values(timers).forEach((id) => window.clearTimeout(id));
+    };
+  }, []);
 
   // --- CHARGEMENT ---
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const url = `https://seme-et-tisse.fr/API/api_volley_seance.php?action=get_current_focus&id=${planifId}&semaine_cible=${calState.week}&annee_cible=${calState.year}&t=${Date.now()}`;
-      const res = await fetch(url);
-      const result = await res.json();
+      const url = apiUrl(
+        'get_current_focus',
+        {
+          id: planifId,
+          semaine_cible: calState.week,
+          annee_cible: calState.year,
+        },
+        { cacheBust: true }
+      );
+      const result = await fetchJson<SeanceData>(url);
       setData(result);
     } catch (err) {
       console.error('Erreur:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [planifId, calState.week, calState.year]);
 
-  useEffect(() => { if (planifId) fetchData(); }, [planifId, calState]);
+  useEffect(() => { if (planifId) fetchData(); }, [planifId, fetchData]);
 
   const navigateWeek = (direction: number) => {
     let newWeek = calState.week + direction;
     let newYear = calState.year;
-    if (newWeek > 52) { newWeek = 1; newYear++; }
-    else if (newWeek < 1) { newWeek = 52; newYear--; }
+    if (newWeek > isoWeeksInYear(newYear)) {
+      newWeek = 1;
+      newYear++;
+    } else if (newWeek < 1) {
+      newYear--;
+      newWeek = isoWeeksInYear(newYear);
+    }
     setCalState({ week: newWeek, year: newYear });
   };
 
-  const handleScoreChange = async (type: 'objectif' | 'theme', itemId: number, score: number) => {
-    const newData = { ...data };
-    const list = type === 'objectif' ? newData.objectifs : newData.themes;
-    const idx = list.findIndex((i: any) => i.id === itemId);
-    if (idx !== -1) {
-      list[idx].statut = score;
-      setData(newData);
-    }
-
+  const persistScore = async (
+    type: 'objectif' | 'theme',
+    itemId: number,
+    score: number
+  ) => {
     try {
-      await fetch(`https://seme-et-tisse.fr/API/api_volley_seance.php?action=save_seance_score`, {
+      const res = await fetchJson<ApiMutationResult>(apiUrl('save_seance_score'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ planif_id: planifId, type, item_id: itemId, score }),
       });
-    } catch (e) { console.error(e); }
+      // On ne bloque pas si l'API ne renvoie pas de champ "success".
+      if (res && res.success === false) {
+        throw new Error(res.error ?? 'refus du serveur');
+      }
+      setScoreError(null);
+    } catch (e) {
+      console.error(e);
+      setScoreError(
+        'Dernière note NON enregistrée (serveur injoignable). Rebougez le curseur pour réessayer.'
+      );
+    }
   };
 
-  const groupedObjectives = data?.objectifs?.reduce((acc: any, obj: any) => {
+  const handleScoreChange = (
+    type: 'objectif' | 'theme',
+    itemId: number,
+    score: number
+  ) => {
+    // Mise à jour immuable : on ne modifie jamais l'objet du state en place.
+    setData((current) => {
+      if (!current) return current;
+      if (type === 'objectif') {
+        return {
+          ...current,
+          objectifs: current.objectifs?.map((o) =>
+            o.id === itemId ? { ...o, statut: score } : o
+          ),
+        };
+      }
+      return {
+        ...current,
+        themes: current.themes?.map((t) =>
+          t.id === itemId ? { ...t, statut: score } : t
+        ),
+      };
+    });
+
+    // Le curseur émet un onChange par pixel : on n'envoie qu'après la pause.
+    const key = `${type}-${itemId}`;
+    window.clearTimeout(saveTimers.current[key]);
+    saveTimers.current[key] = window.setTimeout(() => {
+      void persistScore(type, itemId, score);
+    }, 400);
+  };
+
+  const groupedObjectives = data?.objectifs?.reduce<Record<string, SeanceObjectif[]>>((acc, obj) => {
     const key = obj.secteur_nom || "AUTRE";
     if (!acc[key]) acc[key] = [];
     acc[key].push(obj);
@@ -119,6 +211,13 @@ const PreparationSeance: React.FC<PreparationSeanceProps> = ({ planifId, onBack 
         </div>
       </header>
 
+      {scoreError && (
+        <div className="score-sync-error" role="alert">
+          <WifiOff size={16} />
+          <span>{scoreError}</span>
+        </div>
+      )}
+
       <div className="viewer-content-layout">
         {data?.isVacances ? (
           <div className="vacances-full-screen fade-in">
@@ -144,8 +243,8 @@ const PreparationSeance: React.FC<PreparationSeanceProps> = ({ planifId, onBack 
                     </span>
                   </div>
 
-                  {groupedObjectives[secteur].map((obj: any) => {
-                    const score = parseInt(obj.statut) || 0;
+                  {groupedObjectives[secteur].map((obj) => {
+                    const score = Number(obj.statut ?? 0) || 0;
                     return (
                       <div key={obj.id} className={`obj-group-card mobile-v2-card s-border-${obj.secteur_id}`}>
                         <div className="card-header-row">
@@ -174,8 +273,8 @@ const PreparationSeance: React.FC<PreparationSeanceProps> = ({ planifId, onBack 
               <h2 className="section-title">
                 <Volleyball size={18} className="text-yellow" /> THEME DE LA SÉANCE <Volleyball size={18} className="text-yellow" />
               </h2>
-              {data.themes?.map((th: any) => {
-                const score = parseInt(th.statut) || 0;
+              {data?.themes?.map((th) => {
+                const score = Number(th.statut ?? 0) || 0;
                 return (
                   <div key={th.id} className={`theme-viewer-detail-card mobile-v2-card s-border-${th.secteur_id}`}>
                     {/* Badge aligné à gauche avec largeur auto (Correction demandée) */}

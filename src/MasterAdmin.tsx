@@ -1,64 +1,109 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Plus, Trash2,  
   Target, Volleyball, Lightbulb, Loader2, Info, MessageSquare 
 } from 'lucide-react';
 import './App.css';
+import { apiUrl, fetchJson } from './api';
+import { showToast } from './toast';
+import type { ApiMutationResult } from './types';
+
+interface AdminObjectif {
+  id: number;
+  titre: string;
+  description: string;
+}
+
+interface AdminSousTheme {
+  id: number;
+  nom_sous_theme: string;
+  description: string;
+}
+
+interface AdminConseil {
+  id: number;
+  conseil: string;
+}
+
+interface AdminTheme {
+  id: number;
+  nom_theme: string;
+  description: string;
+  sous_themes?: AdminSousTheme[];
+  conseils?: AdminConseil[];
+}
+
+interface AdminSecteur {
+  id: number;
+  nom: string;
+  code: string;
+  objectifs?: AdminObjectif[];
+  themes?: AdminTheme[];
+}
 
 const MasterAdmin: React.FC = () => {
-  const [secteurs, setSecteurs] = useState<any[]>([]);
-  const [selectedSecteur, setSelectedSecteur] = useState<any>(null);
+  const [secteurs, setSecteurs] = useState<AdminSecteur[]>([]);
+  // On ne stocke que l'ID : garder l'objet en state relançait fetchData en
+  // boucle (chaque fetch recrée des objets, donc une nouvelle identité).
+  const [selectedSecteurId, setSelectedSecteurId] = useState<number | null>(null);
   const [selectedThemeId, setSelectedThemeId] = useState<number | null>(null);
   const [selectedObjId, setSelectedObjId] = useState<number | null>(null);
   const [selectedSubThemeId, setSelectedSubThemeId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Synchronisation des états lors du rafraîchissement des données
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const url = `https://seme-et-tisse.fr/API/api_volley_seance.php?action=get_admin_full_data&t=${Date.now()}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setSecteurs(data);
-        if (selectedSecteur) {
-          const updatedS = data.find(s => s.id === selectedSecteur.id);
-          setSelectedSecteur(updatedS || null);
-        }
-      }
-    } catch (e) { console.error(e); } finally { setLoading(false); }
-  };
+      const data = await fetchJson<AdminSecteur[]>(apiUrl('get_admin_full_data', {}, { cacheBust: true }));
+      if (Array.isArray(data)) setSecteurs(data);
+    } catch (e) {
+      console.error(e);
+      showToast('error', "Impossible de charger les données Master. Vérifiez votre connexion.");
+    } finally { setLoading(false); }
+  }, []);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  const handleSave = async (table: string, item: any) => {
+  const handleSave = async (table: string, item: Record<string, unknown>) => {
     try {
-      const res = await fetch(`https://seme-et-tisse.fr/API/api_volley_seance.php?action=admin_save_item`, {
+      const result = await fetchJson<ApiMutationResult>(apiUrl('admin_save_item'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ table, item })
       });
-      const result = await res.json();
-      if (result.success) fetchData();
-    } catch (e) { console.error(e); }
+      if (result.success) {
+        fetchData();
+      } else {
+        showToast('error', `Enregistrement refusé : ${result.error ?? 'erreur inconnue'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('error', "Enregistrement impossible : la modification n'a pas été sauvegardée.");
+    }
   };
 
   const handleDelete = async (table: string, id: number, label: string) => {
     if (!window.confirm(`Supprimer définitivement "${label}" ?`)) return;
     try {
-      const res = await fetch(`https://seme-et-tisse.fr/API/api_volley_seance.php?action=admin_delete_item`, {
+      const result = await fetchJson<ApiMutationResult>(apiUrl('admin_delete_item'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ table, id })
       });
-      const result = await res.json();
-      if (result.success) fetchData();
-    } catch (e) { console.error(e); }
+      if (result.success) {
+        fetchData();
+      } else {
+        showToast('error', `Suppression refusée : ${result.error ?? 'erreur inconnue'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('error', "Suppression impossible : rien n'a été supprimé.");
+    }
   };
 
-  // Trouver le thème sélectionné dans le secteur pour la colonne 3
-  const selectedTheme = selectedSecteur?.themes?.find((t: any) => t.id === selectedThemeId);
+  // Dérivés des données fraîches : se remettent à jour tout seuls après fetchData
+  const selectedSecteur = secteurs.find((s) => s.id === selectedSecteurId) ?? null;
+  const selectedTheme = selectedSecteur?.themes?.find((t) => t.id === selectedThemeId);
 
   if (loading && secteurs.length === 0) return <div className="loading-state"><Loader2 className="spinner" size={40} /></div>;
 
@@ -75,9 +120,9 @@ const MasterAdmin: React.FC = () => {
             </button>
           </div>
           <div className="items-list">
-            {secteurs.map(s => (
+            {secteurs.map((s) => (
               <div key={s.id} className={`admin-item-card ${selectedSecteur?.id === s.id ? 'active' : ''} s-border-${s.id}`}>
-                <div className="item-main-info" onClick={() => { setSelectedSecteur(s); setSelectedThemeId(null); setSelectedObjId(null); setSelectedSubThemeId(null); }}>
+                <div className="item-main-info" onClick={() => { setSelectedSecteurId(s.id); setSelectedThemeId(null); setSelectedObjId(null); setSelectedSubThemeId(null); }}>
                   <input 
                     defaultValue={s.nom} 
                     onBlur={(e) => e.target.value !== s.nom && handleSave('jsa_secteurs', { id: s.id, nom: e.target.value })}
@@ -101,7 +146,7 @@ const MasterAdmin: React.FC = () => {
                 </button>
               </div>
               
-              {selectedSecteur.objectifs?.map((obj: any) => (
+              {selectedSecteur.objectifs?.map((obj) => (
                 <div key={obj.id} className={`admin-obj-node ${selectedObjId === obj.id ? 'expanded' : ''}`}>
                   <div className="admin-sub-item-premium" onClick={() => setSelectedObjId(selectedObjId === obj.id ? null : obj.id)}>
                     {obj.description && obj.description.trim().length > 0 && (
@@ -135,7 +180,7 @@ const MasterAdmin: React.FC = () => {
                    <Plus size={14} strokeWidth={3} /> AJOUTER
                 </button>
               </div>
-              {selectedSecteur.themes?.map((th: any) => (
+              {selectedSecteur.themes?.map((th) => (
                 <div key={th.id} className={`admin-obj-node ${selectedThemeId === th.id ? 'active' : ''}`}>
                   <div className={`admin-sub-item-premium ${selectedThemeId === th.id ? 'selected' : ''}`} onClick={() => { setSelectedThemeId(th.id); setSelectedObjId(null); }}>
                     {th.description && th.description.trim().length > 0 && (
@@ -178,7 +223,7 @@ const MasterAdmin: React.FC = () => {
                    <Plus size={14} strokeWidth={3} /> AJOUTER
                 </button>
               </div>
-              {selectedTheme.sous_themes?.map((st: any) => (
+              {selectedTheme.sous_themes?.map((st) => (
                 <div key={st.id} className={`admin-obj-node ${selectedSubThemeId === st.id ? 'expanded' : ''}`}>
                   <div className="admin-sub-item-premium" onClick={() => setSelectedSubThemeId(selectedSubThemeId === st.id ? null : st.id)}>
                     {st.description && st.description.trim().length > 0 && (
@@ -214,7 +259,7 @@ const MasterAdmin: React.FC = () => {
                    <Plus size={14} strokeWidth={3} /> AJOUTER
                 </button>
               </div>
-              {selectedTheme.conseils?.map((cons: any) => (
+              {selectedTheme.conseils?.map((cons) => (
                 <div key={cons.id} className="admin-sub-item-premium no-expand">
                   <textarea 
                     defaultValue={cons.conseil} 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import ModelStudio from './ModelStudio';
 import Bibliotheque from './Bibliotheque';
 import PlanifViewer from './PlanifViewer';
@@ -6,25 +6,18 @@ import MesPlanifs from './MesPlanifs';
 import LoginPage from './LoginPage';
 import MasterAdmin from './MasterAdmin';
 import PreparationSeance from './PreparationSeance'; // Nouvel import
+import ToastHost from './ToastHost';
 import { Library, PlusCircle, LogOut, Layout, BookOpen, Settings } from 'lucide-react';
 import './App.css';
+import type { UserData } from './types';
+import { getStoredUser } from './session';
 
 const App: React.FC = () => {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<UserData | null>(() => getStoredUser());
   const [view, setView] = useState<'list' | 'studio' | 'viewer' | 'adminMaster' | 'prepSeance'>('list');
   const [coachTab, setCoachTab] = useState<'active' | 'catalog'>('active');
   const [selectedModeleId, setSelectedModeleId] = useState<number | null>(null);
   const [isTeamMode, setIsTeamMode] = useState<boolean>(false);
-  const [initialized, setInitialized] = useState(false);
-
-  // Initialisation Session
-  useEffect(() => {
-    const savedUser = localStorage.getItem('coachData');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setInitialized(true);
-  }, []);
 
   const handleLogout = () => {
     if (window.confirm("Se déconnecter de JSA Studio ?")) {
@@ -37,10 +30,13 @@ const App: React.FC = () => {
 
   const isAdmin = user?.role === 'admin';
 
-  if (!initialized) return null;
-
   if (!user) {
-    return <LoginPage onLogin={(userData) => setUser(userData)} />;
+    return (
+      <>
+        <LoginPage onLogin={(userData) => setUser(userData)} />
+        <ToastHost />
+      </>
+    );
   }
 
   // --- LOGIQUE DE NAVIGATION ---
@@ -63,10 +59,10 @@ const App: React.FC = () => {
     <div className="app-container">
       <header className="main-app-header">
         <div className="logo-container">
-          <img src="/logo_jsa_tigre.png" alt="JSA Logo" className="jsa-tigre-logo" />
+          <img src={`${import.meta.env.BASE_URL}logo_jsa_tigre.png`} alt="JSA Logo" className="jsa-tigre-logo" />
           <div className="logo-text-stack">
             <span className="jsa-brand">JSA</span>
-            <span className="jsa-subtitle">PLANNIF</span>
+            <span className="jsa-subtitle">PLANIF</span>
           </div>
         </div>
         
@@ -86,10 +82,10 @@ const App: React.FC = () => {
           ) : (
             <>
               <button className={`nav-pill ${coachTab === 'active' ? 'active' : ''}`} onClick={() => { setCoachTab('active'); setView('list'); }}>
-                <Layout size={18} /> MES ÉQUIPE
+                <Layout size={18} /> MES ÉQUIPES
               </button>
               <button className={`nav-pill ${coachTab === 'catalog' ? 'active' : ''}`} onClick={() => { setCoachTab('catalog'); setView('list'); }}>
-                <BookOpen size={18} /> MODELE
+                <BookOpen size={18} /> MODÈLES
               </button>
             </>
           )}
@@ -160,6 +156,8 @@ const App: React.FC = () => {
           </div>
         )}
       </main>
+
+      <ToastHost />
     </div>
   );
 };

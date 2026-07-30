@@ -1,8 +1,15 @@
 import React, { useState } from 'react';
 import { UserCircle, Lock, LogIn } from 'lucide-react';
+import type { UserData } from './types';
+import { apiUrl, fetchJson } from './api';
 
 interface LoginPageProps {
-  onLogin: (userData: any) => void;
+  onLogin: (userData: UserData) => void;
+}
+
+interface LoginResponse {
+  success: boolean;
+  user: UserData;
 }
 
 export default function LoginPage({ onLogin }: LoginPageProps) {
@@ -15,12 +22,11 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     setError(''); // On vide l'erreur avant de tenter une nouvelle connexion
     
     try {
-      const response = await fetch('https://seme-et-tisse.fr/API/api_volley_seance.php?action=login', {
+      const data = await fetchJson<LoginResponse>(apiUrl('login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pseudo, password }),
       });
-      const data = await response.json();
 
       if (data.success) {
         localStorage.setItem('coachData', JSON.stringify(data.user));
@@ -28,7 +34,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       } else {
         setError("Identifiants incorrects");
       }
-    } catch (err) {
+    } catch {
       setError("Erreur de connexion au serveur");
     }
   };
@@ -36,7 +42,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   return (
     <div className="login-page">
       <div className="login-card">
-        <img src="./logo_jsa_tigre.png" className="login-logo" alt="Logo JSA" />
+        <img src={`${import.meta.env.BASE_URL}logo_jsa_tigre.png`} className="login-logo" alt="Logo JSA" />
         {/* TITRE CORRIGÉ ICI */}
         <h1 className="text-yellow">JSA PLANIFICATION</h1>
         

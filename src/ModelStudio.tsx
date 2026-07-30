@@ -12,6 +12,10 @@ import {
   Loader2,
 } from 'lucide-react';
 import './App.css';
+import { apiUrl, fetchJson } from './api';
+import { showToast } from './toast';
+import { getStoredUser } from './session';
+import type { ApiMutationResult, UserData } from './types';
 
 interface Secteur {
   id: number;
@@ -60,6 +64,34 @@ interface Cycle {
   isValidated: boolean;
 }
 
+interface LoadedThemeDetail {
+  id: number;
+  nom: string;
+  secteur_id: number;
+  sous_themes_selectionnes: number[];
+}
+
+interface LoadedWeek {
+  num: number;
+  themes_details: LoadedThemeDetail[];
+}
+
+interface LoadedCycle {
+  id: number | string;
+  ordre: number;
+  secteur_ids: number[] | string;
+  objectifs_selectionnes?: ObjectifBDD[];
+  semaines?: LoadedWeek[];
+}
+
+interface LoadedPlanifData {
+  nom: string;
+  nom_equipe?: string;
+  niveau?: string;
+  cycles?: LoadedCycle[];
+  error?: string;
+}
+
 interface ModelStudioProps {
   modeleId?: number | null;
   onSaveSuccess?: () => void;
@@ -76,32 +108,25 @@ const ModelStudio: React.FC<ModelStudioProps> = ({
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [listeSecteurs, setListeSecteurs] = useState<Secteur[]>([]);
   const [loading, setLoading] = useState(false);
-  const userData = JSON.parse(localStorage.getItem('coachData') || '{}');
+  const userData: UserData =
+    getStoredUser() ?? { id: 0, prenom: '', role: 'coach' };
 
-  // 1. Chargement Secteurs
-  // 1. Chargement initial : Secteurs ET Données du modèle
-  // 1. Chargement initial : Secteurs ET Données du modèle
   // 1. Chargement initial : Secteurs ET Données du modèle
   useEffect(() => {
     const initStudio = async () => {
-      console.log('Studio - Initialisation avec modeleId:', modeleId);
       setLoading(true);
       try {
         // A. Charger les secteurs
-        const resSec = await fetch(
-          `https://seme-et-tisse.fr/API/api_volley_seance.php?action=get_secteurs&t=${Date.now()}`
+        const secteurs = await fetchJson<Secteur[]>(
+          apiUrl('get_secteurs', {}, { cacheBust: true })
         );
-        const secteurs = await resSec.json();
 
         if (Array.isArray(secteurs)) {
           setListeSecteurs(secteurs);
-          console.log('Studio - Secteurs chargés:', secteurs.length);
 
           if (modeleId) {
-            console.log('Studio - Lancement loadFullData pour ID:', modeleId);
             await loadFullData(modeleId, secteurs);
           } else {
-            console.log('Studio - Mode création (Reset)');
             setModelName('');
             setNiveau('débutant');
             setCycles([]);
@@ -111,13 +136,14 @@ const ModelStudio: React.FC<ModelStudioProps> = ({
         }
       } catch (err) {
         console.error('Studio - Erreur FATALE initialisation:', err);
+        showToast('error', 'Impossible de charger la planification. Vérifiez votre connexion.');
       } finally {
         setLoading(false);
       }
     };
 
     initStudio();
-  }, [modeleId]);
+  }, [modeleId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 2. Fonction de chargement du modèle complet
   const loadFullData = async (id: number, secteursActuels: Secteur[]) => {
@@ -125,12 +151,8 @@ const ModelStudio: React.FC<ModelStudioProps> = ({
       const action = isTeamPlanif
         ? 'get_full_planif_equipe'
         : 'get_full_modele';
-      const url = `https://seme-et-tisse.fr/API/api_volley_seance.php?action=${action}&id=${id}&t=${Date.now()}`;
-      console.log('Studio - Fetching URL:', url);
-
-      const response = await fetch(url);
-      const data = await response.json();
-      console.log('Studio - Données brutes reçues:', data);
+      const url = apiUrl(action, { id }, { cacheBust: true });
+      const data = await fetchJson<LoadedPlanifData>(url);
 
       if (data && !data.error) {
         setModelName(isTeamPlanif ? data.nom_equipe || data.nom : data.nom);
@@ -143,7 +165,7 @@ const ModelStudio: React.FC<ModelStudioProps> = ({
         }
 
         const formattedCycles = await Promise.all(
-          data.cycles.map(async (c: any) => {
+          data.cycles.map(async (c) => {
             // On s'assure que les secteur_ids sont un tableau
             let sIds: number[] = [];
             try {
@@ -151,14 +173,9 @@ const ModelStudio: React.FC<ModelStudioProps> = ({
                 typeof c.secteur_ids === 'string'
                   ? JSON.parse(c.secteur_ids)
                   : c.secteur_ids || [];
-            } catch (e) {
+            } catch {
               sIds = [];
             }
-
-            console.log(
-              `Studio - Traitement Cycle ${c.ordre}, Secteurs:`,
-              sIds
-            );
 
             // Récupération des options disponibles pour ce cycle
             const { objectifs, themes } = await loadCombinedData(
@@ -175,12 +192,12 @@ const ModelStudio: React.FC<ModelStudioProps> = ({
               activeWeek: 1,
               isValidated: true,
               objectifs_selectionnes: c.objectifs_selectionnes || [],
-              semaines: (c.semaines || []).map((s: any) => ({
+              semaines: (c.semaines || []).map((s) => ({
                 ...s,
-                themes_details: (s.themes_details || []).map((t: any) => ({
+                themes_details: (s.themes_details || []).map((t) => ({
                   ...t,
                   sous_themes_dispo:
-                    themes.find((td: any) => td.id === t.id)?.sous_themes || [],
+                    themes.find((td) => td.id === t.id)?.sous_themes || [],
                   sous_themes_selectionnes: Array.isArray(
                     t.sous_themes_selectionnes
                   )
@@ -192,13 +209,20 @@ const ModelStudio: React.FC<ModelStudioProps> = ({
           })
         );
 
-        console.log('Studio - Cycles formattés prêts:', formattedCycles);
         setCycles(formattedCycles);
       } else {
         console.error('Studio - Erreur API ou donnée vide:', data?.error);
+        showToast(
+          'error',
+          `Chargement impossible : ${data?.error ?? 'données introuvables'}`
+        );
       }
     } catch (e) {
       console.error('Studio - Erreur loadFullData:', e);
+      showToast(
+        'error',
+        'Chargement de la planification impossible (serveur injoignable).'
+      );
     }
   };
 
@@ -213,24 +237,21 @@ const ModelStudio: React.FC<ModelStudioProps> = ({
     for (const sId of secteurIds) {
       const currentSecteur = secteursActuels.find((s) => s.id === sId);
       try {
-        const [resObj, resThemes] = await Promise.all([
-          fetch(
-            `https://seme-et-tisse.fr/API/api_volley_seance.php?action=get_objectifs_pedago&secteur_id=${sId}&t=${Date.now()}`
+        const [obj, themes] = await Promise.all([
+          fetchJson<ObjectifBDD[]>(
+            apiUrl('get_objectifs_pedago', { secteur_id: sId }, { cacheBust: true })
           ),
-          fetch(
-            `https://seme-et-tisse.fr/API/api_volley_seance.php?action=get_themes_complet&secteur_id=${sId}&t=${Date.now()}`
+          fetchJson<ThemeComplet[]>(
+            apiUrl('get_themes_complet', { secteur_id: sId }, { cacheBust: true })
           ),
         ]);
-
-        const obj = await resObj.json();
-        const themes = await resThemes.json();
 
         allObj = [
           ...allObj,
           ...(Array.isArray(obj) ? obj : []).map((o) => ({
             ...o,
             secteur_id: sId,
-            secteur_code: currentSecteur?.code,
+            secteur_code: currentSecteur?.code ?? '',
           })),
         ];
 
@@ -239,7 +260,7 @@ const ModelStudio: React.FC<ModelStudioProps> = ({
           ...(Array.isArray(themes) ? themes : []).map((t) => ({
             ...t,
             secteur_id: sId,
-            secteur_code: currentSecteur?.code,
+            secteur_code: currentSecteur?.code ?? '',
           })),
         ];
       } catch (e) {
@@ -273,6 +294,15 @@ const ModelStudio: React.FC<ModelStudioProps> = ({
               objectifs_selectionnes: c.objectifs_selectionnes.filter((o) =>
                 newIds.includes(o.secteur_id)
               ),
+              // On purge aussi les thèmes déjà planifiés dans les semaines,
+              // sinon ils restent affichés sans exister dans themes_disponibles
+              // (thèmes orphelins) et polluent la sauvegarde.
+              semaines: c.semaines.map((s) => ({
+                ...s,
+                themes_details: s.themes_details.filter((t) =>
+                  newIds.includes(t.secteur_id)
+                ),
+              })),
             }
           : c
       )
@@ -283,7 +313,7 @@ const ModelStudio: React.FC<ModelStudioProps> = ({
   const saveFullCursus = async () => {
     // SÉCURITÉ : Seul l'admin peut modifier un modèle MASTER
     if (!isTeamPlanif && userData.role !== 'admin') {
-      alert('Droit refusé : Vous ne pouvez pas modifier un modèle Master.');
+      showToast('error', 'Droit refusé : vous ne pouvez pas modifier un modèle Master.');
       return;
     }
     setLoading(true);
@@ -309,21 +339,31 @@ const ModelStudio: React.FC<ModelStudioProps> = ({
     };
 
     try {
-      const res = await fetch(
-        `https://seme-et-tisse.fr/API/api_volley_seance.php?action=${action}&t=${Date.now()}`,
+      const result = await fetchJson<ApiMutationResult>(
+        apiUrl(action, {}, { cacheBust: true }),
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         }
       );
-      const result = await res.json();
       if (result.success) {
-        alert('✅ Enregistrement réussi !');
+        showToast('success', 'Planification enregistrée.');
         if (onSaveSuccess) onSaveSuccess();
+      } else {
+        showToast(
+          'error',
+          `Enregistrement refusé : ${
+            result.error ?? 'erreur inconnue'
+          }. Vos modifications ne sont PAS sauvegardées.`
+        );
       }
     } catch (e) {
       console.error(e);
+      showToast(
+        'error',
+        'Enregistrement impossible (serveur injoignable). Vos modifications ne sont PAS sauvegardées : restez sur la page et réessayez.'
+      );
     } finally {
       setLoading(false);
     }
@@ -380,6 +420,33 @@ const ModelStudio: React.FC<ModelStudioProps> = ({
                   ],
             };
           }),
+        };
+      })
+    );
+  };
+
+  // Retrait par ID : ne dépend pas de themes_disponibles, donc fonctionne aussi
+  // sur un thème dont le secteur vient d'être désélectionné.
+  const removeThemeFromWeek = (
+    cycleId: string,
+    weekNum: number,
+    themeId: number
+  ) => {
+    setCycles((prev) =>
+      prev.map((c) => {
+        if (c.id !== cycleId) return c;
+        return {
+          ...c,
+          semaines: c.semaines.map((s) =>
+            s.num !== weekNum
+              ? s
+              : {
+                  ...s,
+                  themes_details: s.themes_details.filter(
+                    (t) => t.id !== themeId
+                  ),
+                }
+          ),
         };
       })
     );
@@ -614,12 +681,10 @@ const ModelStudio: React.FC<ModelStudioProps> = ({
                                     <button
                                       className="btn-remove-theme"
                                       onClick={() =>
-                                        toggleThemeInWeek(
+                                        removeThemeFromWeek(
                                           cycle.id,
                                           numSem,
-                                          cycle.themes_disponibles.find(
-                                            (td) => td.id === th.id
-                                          )!
+                                          th.id
                                         )
                                       }
                                     >
