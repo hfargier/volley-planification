@@ -217,7 +217,15 @@ case 'get_current_focus':
             $vacs = json_decode(file_get_contents($cacheFile), true);
             if (is_array($vacs)) {
                 foreach ($vacs as $v) {
-                    if (str_contains(strtolower($v['description'] ?? ''), 'été')) continue;
+                    // strtolower() travaille octet par octet : « Vacances d'Été »
+                    // restait « vacances d'Été » et le filtre ne matchait jamais.
+                    // Les vacances d'été etaient donc comptees comme une treve,
+                    // ce qui decalait le debut de saison de deux semaines.
+                    $desc = $v['description'] ?? '';
+                    $descBas = function_exists('mb_strtolower')
+                        ? mb_strtolower($desc, 'UTF-8')
+                        : strtolower($desc);
+                    if (str_contains($descBas, 'été') || str_contains($descBas, 'ete')) continue;
 
                     $tsVStart = strtotime("Monday this week", strtotime($v['start_date']));
                     $tsVEnd = strtotime("Monday this week", strtotime($v['end_date']));
