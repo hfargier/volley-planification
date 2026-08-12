@@ -797,6 +797,97 @@ to { opacity: 1; transform: translateY(0); }
 }
 
 /* ==========================================================
+   RÉPARTITION DU TEMPS DE SÉANCE (vue terrain)
+   ========================================================== */
+.charges-duree {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.charges-duree label {
+  color: #888;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+.charges-duree-select { width: auto; padding: 6px 9px; font-size: 0.72rem; }
+
+.charges-familles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.charge-famille-pill {
+  padding: 5px 11px;
+  border-radius: 20px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  border: 1px solid #3a3a3a;
+  color: #bbb;
+}
+.charge-famille-pill strong { color: #fff; }
+/* Une couleur par famille : le coach repère sa dominante d'un coup d'oeil */
+.famille-technique { border-color: rgba(255,204,0,.5); background: rgba(255,204,0,.1); }
+.famille-technique strong { color: var(--jsa-yellow); }
+.famille-tactique { border-color: rgba(80,180,255,.5); background: rgba(80,180,255,.1); }
+.famille-tactique strong { color: #63b8ff; }
+.famille-physique { border-color: rgba(46,204,113,.5); background: rgba(46,204,113,.1); }
+.famille-physique strong { color: #2ecc71; }
+
+.charges-blocs { display: flex; flex-direction: column; gap: 8px; }
+
+.charge-bloc {
+  background: #1a1a1a;
+  border: 1px solid #2c2c2c;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.charge-bloc-tete { display: flex; align-items: center; gap: 10px; }
+
+.charge-bloc-minutes {
+  min-width: 44px;
+  color: var(--jsa-yellow);
+  font-size: 1rem;
+  font-weight: 900;
+  text-align: right;
+}
+
+.charge-bloc-libelle { flex: 1; display: flex; flex-direction: column; line-height: 1.25; }
+.charge-bloc-libelle strong { color: #eee; font-size: 0.8rem; }
+.charge-bloc-libelle small { color: #777; font-size: 0.66rem; }
+
+.charge-bloc-code {
+  color: #888;
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 1px;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+.charge-bloc-jauge {
+  margin-top: 8px;
+  height: 4px;
+  background: #262626;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.charge-bloc-jauge-remplie { height: 100%; background: var(--jsa-yellow); border-radius: 2px; }
+
+.charges-note {
+  margin: 10px 0 0;
+  color: #666;
+  font-size: 0.62rem;
+  font-style: italic;
+}
+
+/* ==========================================================
    FENÊTRE DE CONFIRMATION DESTRUCTIVE (remplace window.confirm)
    ========================================================== */
 .modal-backdrop {

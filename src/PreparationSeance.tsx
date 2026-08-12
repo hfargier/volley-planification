@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   ArrowLeft,
   Loader2,
@@ -12,6 +12,8 @@ import {
 import './App.css';
 import { apiUrl, fetchJson } from './api';
 import type { ApiMutationResult } from './types';
+import ChargesSeance from './ChargesSeance';
+import { chargerCharges, chargerTypesTravail, type Charge, type TypeTravail } from './charges';
 
 // --- HELPERS SEMAINE ISO 8601 ---
 const getISOWeek = (d: Date) => {
@@ -61,7 +63,7 @@ interface SeanceTheme {
 interface SeanceData {
   isVacances?: boolean;
   currentCycle?: number;
-  currentWeek?: number;
+  currentWeek?: string;  // format « S1 », « S2 »…
   objectifs?: SeanceObjectif[];
   themes?: SeanceTheme[];
 }
@@ -71,6 +73,18 @@ const PreparationSeance: React.FC<PreparationSeanceProps> = ({ planifId, onBack 
   const [loading, setLoading] = useState(true);
   const [scoreError, setScoreError] = useState<string | null>(null);
   const saveTimers = useRef<Record<string, number>>({});
+  const [charges, setCharges] = useState<Charge[]>([]);
+  const [typesTravail, setTypesTravail] = useState<TypeTravail[]>([]);
+  // La durée de séance varie d'une équipe à l'autre : on retient le choix.
+  const [dureeSeance, setDureeSeance] = useState<number>(() => {
+    const v = Number(localStorage.getItem('dureeSeance'));
+    return v >= 30 && v <= 240 ? v : 90;
+  });
+
+  const changerDuree = (m: number) => {
+    setDureeSeance(m);
+    localStorage.setItem('dureeSeance', String(m));
+  };
 
   const [calState, setCalState] = useState(() => {
     const now = new Date();
@@ -108,6 +122,21 @@ const PreparationSeance: React.FC<PreparationSeanceProps> = ({ planifId, onBack 
   }, [planifId, calState.week, calState.year]);
 
   useEffect(() => { if (planifId) fetchData(); }, [planifId, fetchData]);
+
+  // Répartition du temps : indépendante de la semaine affichée, on la charge
+  // une seule fois. Silencieux en cas d'échec, la séance reste consultable.
+  useEffect(() => {
+    if (!planifId) return;
+    let annule = false;
+    Promise.all([chargerTypesTravail(), chargerCharges(planifId, 'equipe')])
+      .then(([t, c]) => {
+        if (annule) return;
+        setTypesTravail(Array.isArray(t) ? t : []);
+        setCharges(Array.isArray(c) ? c : []);
+      })
+      .catch((e) => console.error('Charges indisponibles :', e));
+    return () => { annule = true; };
+  }, [planifId]);
 
   const navigateWeek = (direction: number) => {
     let newWeek = calState.week + direction;
@@ -178,6 +207,22 @@ const PreparationSeance: React.FC<PreparationSeanceProps> = ({ planifId, onBack 
     }, 400);
   };
 
+  // currentWeek arrive au format « S1 » : on en extrait le numéro pour
+  // retrouver la bonne ligne de répartition.
+  const numSemaineCycle =
+    Number(String(data?.currentWeek ?? '').replace(/\D/g, '')) || 0;
+
+  // Les charges désignent les thèmes par identifiant ; on affiche leur nom,
+  // préfixé du secteur : plusieurs secteurs ont un thème « Contact » ou
+  // « Technique », le nom seul serait ambigu sur le terrain.
+  const nomThemes = useMemo(() => {
+    const m: Record<number, string> = {};
+    for (const t of data?.themes ?? []) {
+      m[t.id] = t.secteur_nom ? `${t.secteur_nom} · ${t.nom}` : t.nom;
+    }
+    return m;
+  }, [data?.themes]);
+
   const groupedObjectives = data?.objectifs?.reduce<Record<string, SeanceObjectif[]>>((acc, obj) => {
     const key = obj.secteur_nom || "AUTRE";
     if (!acc[key]) acc[key] = [];
@@ -207,7 +252,7 @@ const PreparationSeance: React.FC<PreparationSeanceProps> = ({ planifId, onBack 
         </div>
 
         <div className="focus-meta-pills-mini">
-          <span className="badge-cycle">Cycle {data?.currentCycle} / S{data?.currentWeek}</span>
+          <span className="badge-cycle">Cycle {data?.currentCycle} / {data?.currentWeek}</span>
         </div>
       </header>
 
@@ -309,6 +354,17 @@ const PreparationSeance: React.FC<PreparationSeanceProps> = ({ planifId, onBack 
                 );
               })}
             </section>
+
+            {/* --- RÉPARTITION DU TEMPS --- */}
+            <ChargesSeance
+              charges={charges}
+              types={typesTravail}
+              cycleOrdre={Number(data?.currentCycle ?? 0)}
+              numSemaine={numSemaineCycle}
+              dureeMinutes={dureeSeance}
+              onChangerDuree={changerDuree}
+              nomThemes={nomThemes}
+            />
           </div>
         )}
       </div>
