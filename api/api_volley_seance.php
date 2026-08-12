@@ -77,6 +77,25 @@ try {
     exit;
 }
 
+/**
+ * Les tables de charges sont créées à part (script SQL). Tant qu'elles
+ * n'existent pas, les fonctionnalités liées se neutralisent au lieu de
+ * provoquer une erreur SQL — la duplication d'une planif doit continuer
+ * de fonctionner.
+ */
+function jsa_table_existe(PDO $pdo, $nom) {
+    static $cache = [];
+    if (isset($cache[$nom])) return $cache[$nom];
+    try {
+        $st = $pdo->prepare("SHOW TABLES LIKE ?");
+        $st->execute([$nom]);
+        $cache[$nom] = (bool)$st->fetchColumn();
+    } catch (Exception $e) {
+        $cache[$nom] = false;
+    }
+    return $cache[$nom];
+}
+
 $action = $_GET['action'] ?? '';
 
 // --- AUTHENTIFICATION ---
@@ -734,6 +753,102 @@ case 'update_planif_date':
     $success = $stmt->execute([$date, $id]);
     echo json_encode(["success" => $success]);
     break;
+    // --- CHARGES DE TRAVAIL (repartition du temps) ---------------------
+    case 'get_types_travail':
+        if (!jsa_table_existe($pdo, 'jsa_types_travail')) {
+            echo json_encode([]);
+            break;
+        }
+        $st = $pdo->query("SELECT id, famille, nom, code, ordre FROM jsa_types_travail ORDER BY ordre ASC");
+        echo json_encode($st->fetchAll(PDO::FETCH_ASSOC));
+        break;
+
+    case 'get_charges':
+        // ?id=<planif ou modele>&mode=modele|equipe
+        $id = intval($_GET['id'] ?? 0);
+        $estEquipe = (($_GET['mode'] ?? 'modele') === 'equipe');
+        $tCharges = $estEquipe ? 'jsa_planif_equipe_charges' : 'jsa_planif_cycle_charges';
+        $tCycles  = $estEquipe ? 'jsa_planif_equipe_cycles' : 'jsa_planif_cycles';
+        $fk       = $estEquipe ? 'planif_equipe_id' : 'modele_id';
+
+        if (!$id || !jsa_table_existe($pdo, $tCharges)) {
+            echo json_encode([]);
+            break;
+        }
+        $st = $pdo->prepare("
+            SELECT ch.cycle_id, c.ordre AS cycle_ordre, ch.num_semaine, ch.niveau,
+                   ch.famille, ch.theme_id, ch.type_travail_id, ch.pourcentage
+            FROM $tCharges ch
+            JOIN $tCycles c ON c.id = ch.cycle_id
+            WHERE c.$fk = ?
+            ORDER BY c.ordre, ch.num_semaine, ch.niveau
+        ");
+        $st->execute([$id]);
+        echo json_encode($st->fetchAll(PDO::FETCH_ASSOC));
+        break;
+
+    case 'save_charges':
+        // { id, mode, charges: [{cycle_id, num_semaine, niveau, famille, theme_id, type_travail_id, pourcentage}] }
+        $data = json_decode(file_get_contents("php://input"), true);
+        $id = intval($data['id'] ?? 0);
+        $estEquipe = (($data['mode'] ?? 'modele') === 'equipe');
+        $tCharges = $estEquipe ? 'jsa_planif_equipe_charges' : 'jsa_planif_cycle_charges';
+        $tCycles  = $estEquipe ? 'jsa_planif_equipe_cycles' : 'jsa_planif_cycles';
+        $fk       = $estEquipe ? 'planif_equipe_id' : 'modele_id';
+
+        if (!$id) {
+            echo json_encode(["success" => false, "error" => "id manquant"]);
+            break;
+        }
+        if (!jsa_table_existe($pdo, $tCharges)) {
+            echo json_encode([
+                "success" => false,
+                "error" => "Table $tCharges absente : le script SQL de création n'a pas encore été passé."
+            ]);
+            break;
+        }
+
+        try {
+            $pdo->beginTransaction();
+
+            // On ne touche qu'aux cycles de CETTE planification.
+            $stC = $pdo->prepare("SELECT id FROM $tCycles WHERE $fk = ?");
+            $stC->execute([$id]);
+            $cyclesValides = array_map('intval', $stC->fetchAll(PDO::FETCH_COLUMN));
+
+            if ($cyclesValides) {
+                $in = implode(',', $cyclesValides);
+                $pdo->exec("DELETE FROM $tCharges WHERE cycle_id IN ($in)");
+            }
+
+            $ins = $pdo->prepare("INSERT INTO $tCharges
+                (cycle_id, num_semaine, niveau, famille, theme_id, type_travail_id, pourcentage)
+                VALUES (?, ?, ?, ?, ?, ?, ?)");
+
+            $n = 0;
+            foreach (($data['charges'] ?? []) as $ch) {
+                $cid = intval($ch['cycle_id'] ?? 0);
+                if (!in_array($cid, $cyclesValides, true)) continue; // cycle etranger : ignore
+                $ins->execute([
+                    $cid,
+                    intval($ch['num_semaine'] ?? 0),
+                    intval($ch['niveau'] ?? 0),
+                    $ch['famille'] ?? '',
+                    intval($ch['theme_id'] ?? 0),
+                    intval($ch['type_travail_id'] ?? 0),
+                    round(floatval($ch['pourcentage'] ?? 0), 2),
+                ]);
+                $n++;
+            }
+
+            $pdo->commit();
+            echo json_encode(["success" => true, "enregistrees" => $n]);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            echo json_encode(["success" => false, "error" => $e->getMessage()]);
+        }
+        break;
+
     case 'delete_planif_equipe':
         $data = json_decode(file_get_contents("php://input"), true);
         $planifId = intval($data['id'] ?? 0);
@@ -850,10 +965,12 @@ case 'update_planif_date':
             $newPId = $pdo->lastInsertId();
             $stC = $pdo->prepare("SELECT * FROM jsa_planif_cycles WHERE modele_id = ?");
             $stC->execute([$modeleId]);
+            $mapCycles = []; // ancien cycle du modele -> nouveau cycle de l'equipe
             while ($c = $stC->fetch(PDO::FETCH_ASSOC)) {
                 $insC = $pdo->prepare("INSERT INTO jsa_planif_equipe_cycles (planif_equipe_id, secteur_ids, ordre) VALUES (?, ?, ?)");
                 $insC->execute([$newPId, $c['secteur_ids'], $c['ordre']]);
                 $newCId = $pdo->lastInsertId();
+                $mapCycles[intval($c['id'])] = intval($newCId);
                 $pdo->exec("INSERT INTO jsa_planif_equipe_objectifs (cycle_id, objectif_id) SELECT $newCId, objectif_id FROM jsa_planif_cycle_objectifs WHERE cycle_id = {$c['id']}");
                 $stT = $pdo->prepare("SELECT * FROM jsa_planif_semaine_themes WHERE cycle_id = ?");
                 $stT->execute([$c['id']]);
@@ -866,6 +983,28 @@ case 'update_planif_date':
                     $pdo->exec("INSERT INTO jsa_planif_equipe_theme_details (equipe_theme_id, sous_theme_id) SELECT $newTId, sous_theme_id FROM jsa_planif_theme_details WHERE semaine_theme_id = {$t['id']}");
                 }
             }
+
+            // Report des charges de travail. Encadre par un test d'existence :
+            // tant que le script SQL n'a pas ete passe, la duplication doit
+            // continuer de fonctionner normalement.
+            if ($mapCycles
+                && jsa_table_existe($pdo, 'jsa_planif_cycle_charges')
+                && jsa_table_existe($pdo, 'jsa_planif_equipe_charges')) {
+                $stCh = $pdo->prepare("SELECT * FROM jsa_planif_cycle_charges WHERE cycle_id = ?");
+                $insCh = $pdo->prepare("INSERT INTO jsa_planif_equipe_charges
+                    (cycle_id, num_semaine, niveau, famille, theme_id, type_travail_id, pourcentage)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)");
+                foreach ($mapCycles as $ancien => $nouveau) {
+                    $stCh->execute([$ancien]);
+                    while ($ch = $stCh->fetch(PDO::FETCH_ASSOC)) {
+                        $insCh->execute([
+                            $nouveau, $ch['num_semaine'], $ch['niveau'], $ch['famille'],
+                            $ch['theme_id'], $ch['type_travail_id'], $ch['pourcentage'],
+                        ]);
+                    }
+                }
+            }
+
             $pdo->commit();
             echo json_encode(["success" => true, "id" => $newPId]);
         } catch (Exception $e) { $pdo->rollBack(); echo json_encode(["success" => false, "error" => $e->getMessage()]); }
