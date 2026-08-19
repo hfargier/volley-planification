@@ -1,14 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FileText, Plus, Loader2, Copy, X, Check, Users, CalendarDays, Pencil } from 'lucide-react';
+import {
+  FileText, Plus, Loader2, Copy, X, Check, Users, CalendarDays, Pencil,
+  Eye, EyeOff, Trash2,
+} from 'lucide-react';
 import './App.css';
 import { apiUrl, fetchJson } from './api';
 import { showToast } from './toast';
+import ConfirmDeleteModal from './ConfirmDeleteModal';
 import type { ApiMutationResult, UserData } from './types';
 
 interface ModeleListe {
   id: number;
   nom: string;
   niveau: string;
+  /** 0 = masqué aux coachs. Absent si le SQL n'a pas encore été passé. */
+  visible?: number | string;
 }
 
 interface Team {
@@ -69,11 +75,18 @@ const Bibliotheque: React.FC<BibliothequeProps> = ({ onEdit, onView, onCreateNew
 
   const isEffectiveAdmin = user?.role === 'admin' && mode !== 'viewer';
 
+  const [aSupprimer, setASupprimer] = useState<ModeleListe | null>(null);
+  const [suppressionEnCours, setSuppressionEnCours] = useState(false);
+
+  const estVisible = (m: ModeleListe) => m.visible === undefined || Number(m.visible) === 1;
+
   const fetchModeles = useCallback(async () => {
     setLoading(true);
     try {
+      // L'admin voit aussi les modèles masqués ; le serveur filtre pour les autres.
       // CACHE BUSTER OBLIGATOIRE : t=timestamp
-      const data = await fetchJson<ModeleListe[]>(apiUrl('get_modeles_liste', {}, { cacheBust: true }), {
+      const params = isEffectiveAdmin ? { tous: 1 } : {};
+      const data = await fetchJson<ModeleListe[]>(apiUrl('get_modeles_liste', params, { cacheBust: true }), {
         headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
       });
       setModeles(Array.isArray(data) ? data : []);
@@ -82,7 +95,52 @@ const Bibliotheque: React.FC<BibliothequeProps> = ({ onEdit, onView, onCreateNew
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isEffectiveAdmin]);
+
+  const basculerVisibilite = async (m: ModeleListe) => {
+    const cible = !estVisible(m);
+    try {
+      const res = await fetchJson<ApiMutationResult>(apiUrl('set_modele_visible'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: m.id, visible: cible ? 1 : 0 }),
+      });
+      if (!res.success) {
+        showToast('error', res.error ?? 'Changement de visibilité refusé.');
+        return;
+      }
+      setModeles((liste) =>
+        liste.map((x) => (x.id === m.id ? { ...x, visible: cible ? 1 : 0 } : x))
+      );
+      showToast('success', cible
+        ? `« ${m.nom} » est visible par les entraîneurs.`
+        : `« ${m.nom} » est masqué aux entraîneurs.`);
+    } catch (err) {
+      console.error(err);
+      showToast('error', 'Serveur injoignable : visibilité inchangée.');
+    }
+  };
+
+  const supprimerModele = async (m: ModeleListe) => {
+    setSuppressionEnCours(true);
+    try {
+      const res = await fetchJson<ApiMutationResult>(
+        apiUrl('delete_modele', { id: m.id }, { cacheBust: true })
+      );
+      if (!res.success) {
+        showToast('error', `Suppression refusée : ${res.error ?? 'erreur inconnue'}`);
+        return;
+      }
+      setModeles((liste) => liste.filter((x) => x.id !== m.id));
+      setASupprimer(null);
+      showToast('success', `Modèle « ${m.nom} » supprimé.`);
+    } catch (err) {
+      console.error(err);
+      showToast('error', 'Suppression impossible (serveur injoignable).');
+    } finally {
+      setSuppressionEnCours(false);
+    }
+  };
 
   const fetchMyTeams = useCallback(async () => {
     try {
@@ -180,15 +238,40 @@ const Bibliotheque: React.FC<BibliothequeProps> = ({ onEdit, onView, onCreateNew
           <div className="no-data-box">Aucun modèle disponible dans le catalogue.</div>
         ) : (
           modeles.map((m) => (
-            <div key={m.id} className="modele-card-simple">
+            <div key={m.id} className={`modele-card-simple ${estVisible(m) ? '' : 'modele-masque'}`}>
               <div className="modele-card-content" onClick={() => isEffectiveAdmin ? onEdit(m.id) : onView(m.id)}>
                 <div className="modele-icon-wrapper"><FileText size={28} className="text-yellow" /></div>
                 <div className="modele-info">
                   <h3>{m.nom}</h3>
                   <span className={`niveau-badge niveau-${m.niveau?.toLowerCase()}`}>{m.niveau}</span>
+                  {isEffectiveAdmin && !estVisible(m) && (
+                    <span className="badge-masque"><EyeOff size={11} /> MASQUÉ</span>
+                  )}
                 </div>
               </div>
               <div className="modele-card-footer">
+                {isEffectiveAdmin && (
+                  <div className="modele-actions-admin">
+                    <button
+                      className="btn-carte-admin"
+                      onClick={() => basculerVisibilite(m)}
+                      title={estVisible(m)
+                        ? 'Masquer ce modèle aux entraîneurs'
+                        : 'Rendre ce modèle visible aux entraîneurs'}
+                    >
+                      {estVisible(m) ? <Eye size={16} /> : <EyeOff size={16} />}
+                      {estVisible(m) ? 'VISIBLE' : 'MASQUÉ'}
+                    </button>
+                    <button
+                      className="btn-carte-admin btn-carte-danger"
+                      onClick={() => setASupprimer(m)}
+                      title="Supprimer définitivement ce modèle"
+                      aria-label={`Supprimer le modèle ${m.nom}`}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                )}
                 {!isEffectiveAdmin && (
                   showSelectorId === m.id ? (
                     <div className="team-selector-premium">
@@ -254,6 +337,25 @@ const Bibliotheque: React.FC<BibliothequeProps> = ({ onEdit, onView, onCreateNew
           ))
         )}
       </div>
+
+      {aSupprimer && (
+        <ConfirmDeleteModal
+          titre="SUPPRIMER CE MODÈLE"
+          nom={aSupprimer.nom}
+          sousTitre={aSupprimer.niveau}
+          perte={
+            <>
+              Seront définitivement perdus : les cycles du modèle, leurs
+              objectifs, les thèmes de chaque semaine et la répartition du temps.
+              <strong> Les planifications déjà copiées vers une équipe ne sont pas
+              touchées</strong>, ce sont des copies indépendantes.
+            </>
+          }
+          busy={suppressionEnCours}
+          onCancel={() => setASupprimer(null)}
+          onConfirm={() => supprimerModele(aSupprimer)}
+        />
+      )}
     </div>
   );
 };

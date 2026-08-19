@@ -476,8 +476,46 @@ case 'admin_save_item':
 
     // --- GESTION DES MODÈLES (MASTER) ---
     case 'get_modeles_liste':
-        $stmt = $pdo->query("SELECT id, nom, niveau FROM jsa_planif_modele ORDER BY id DESC");
+        // Un modèle masqué reste utilisable par l'admin mais disparaît du
+        // catalogue des coachs : c'est un rangement, pas une sécurité.
+        // La colonne `visible` peut manquer si le SQL n'a pas encore été passé :
+        // dans ce cas tout est visible, l'application continue de fonctionner.
+        $aVisible = (bool) $pdo->query(
+            "SHOW COLUMNS FROM jsa_planif_modele LIKE 'visible'"
+        )->fetch(PDO::FETCH_ASSOC);
+        $tous = !empty($_GET['tous']);
+
+        if (!$aVisible) {
+            $stmt = $pdo->query("SELECT id, nom, niveau, 1 AS visible FROM jsa_planif_modele ORDER BY id DESC");
+        } elseif ($tous) {
+            $stmt = $pdo->query("SELECT id, nom, niveau, visible FROM jsa_planif_modele ORDER BY id DESC");
+        } else {
+            $stmt = $pdo->query("SELECT id, nom, niveau, visible FROM jsa_planif_modele WHERE visible = 1 ORDER BY id DESC");
+        }
         echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+        break;
+
+    case 'set_modele_visible':
+        $data = json_decode(file_get_contents("php://input"), true);
+        $id = intval($data['id'] ?? 0);
+        if (!$id) {
+            echo json_encode(["success" => false, "error" => "Identifiant manquant"]);
+            break;
+        }
+        $aVisible = (bool) $pdo->query(
+            "SHOW COLUMNS FROM jsa_planif_modele LIKE 'visible'"
+        )->fetch(PDO::FETCH_ASSOC);
+        if (!$aVisible) {
+            echo json_encode([
+                "success" => false,
+                "error" => "La colonne `visible` n'existe pas encore : "
+                         . "ALTER TABLE jsa_planif_modele ADD COLUMN visible TINYINT(1) NOT NULL DEFAULT 1;"
+            ]);
+            break;
+        }
+        $st = $pdo->prepare("UPDATE jsa_planif_modele SET visible = ? WHERE id = ?");
+        $st->execute([empty($data['visible']) ? 0 : 1, $id]);
+        echo json_encode(["success" => true]);
         break;
 
 case 'save_planif_equipe':
@@ -1011,9 +1049,24 @@ case 'update_planif_date':
         break;
 
     case 'delete_modele':
-        $st = $pdo->prepare("DELETE FROM jsa_planif_modele WHERE id = ?");
-        $st->execute([$_GET['id']]);
-        echo json_encode(["success" => true]);
+        $id = intval($_GET['id'] ?? 0);
+        if (!$id) {
+            echo json_encode(["success" => false, "error" => "Identifiant manquant"]);
+            break;
+        }
+        // Les cycles ne partaient pas avec le modèle : la table gardait des
+        // lignes rattachées à un modèle disparu, ainsi que leurs semaines,
+        // leurs objectifs et leurs charges. On supprime l'arbre d'abord.
+        try {
+            $pdo->beginTransaction();
+            $pdo->prepare("DELETE FROM jsa_planif_cycles WHERE modele_id = ?")->execute([$id]);
+            $pdo->prepare("DELETE FROM jsa_planif_modele WHERE id = ?")->execute([$id]);
+            $pdo->commit();
+            echo json_encode(["success" => true]);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            echo json_encode(["success" => false, "error" => $e->getMessage()]);
+        }
         break;
 
     default:

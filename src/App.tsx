@@ -7,10 +7,10 @@ import LoginPage from './LoginPage';
 import MasterAdmin from './MasterAdmin';
 import PreparationSeance from './PreparationSeance'; // Nouvel import
 import ToastHost from './ToastHost';
-import { Library, PlusCircle, LogOut, Layout, BookOpen, Settings, Download } from 'lucide-react';
+import { Library, PlusCircle, LogOut, Layout, BookOpen, Settings, Download, Shield, ShieldCheck } from 'lucide-react';
 import './App.css';
 import type { UserData } from './types';
-import { getStoredUser } from './session';
+import { getStoredUser, getModeAdmin, setModeAdmin } from './session';
 import { usePwa } from './usePwa';
 
 const App: React.FC = () => {
@@ -21,6 +21,7 @@ const App: React.FC = () => {
   const [coachTab, setCoachTab] = useState<'active' | 'catalog'>('active');
   const [selectedModeleId, setSelectedModeleId] = useState<number | null>(null);
   const [isTeamMode, setIsTeamMode] = useState<boolean>(false);
+  const [modeAdmin, setModeAdminState] = useState<boolean>(() => getModeAdmin());
 
   const handleLogout = () => {
     if (window.confirm("Se déconnecter de JSA Studio ?")) {
@@ -31,7 +32,21 @@ const App: React.FC = () => {
     }
   };
 
-  const isAdmin = user?.role === 'admin';
+  const estAdminDeDroit = user?.role === 'admin';
+  // Un admin peut se mettre en mode normal pour voir ce que voient ses coachs.
+  const isAdmin = estAdminDeDroit && modeAdmin;
+
+  const basculerMode = () => {
+    const suivant = !modeAdmin;
+    setModeAdmin(suivant);
+    setModeAdminState(suivant);
+    // Les vues ne se recouvrent pas d'un mode à l'autre : Config Master n'existe
+    // pas côté coach, et Mes Équipes n'existe pas côté admin. On repart de la liste.
+    setView('list');
+    setCoachTab('active');
+    setSelectedModeleId(null);
+    setIsTeamMode(false);
+  };
 
   if (!user) {
     return (
@@ -112,7 +127,22 @@ const App: React.FC = () => {
                 <Download size={18} /> INSTALLER
               </button>
             )}
-            <span className="user-name-tag">{user.prenom} <small>({user.role})</small></span>
+            {estAdminDeDroit && (
+              <button
+                className={`nav-pill btn-mode-admin ${modeAdmin ? '' : 'en-mode-coach'}`}
+                onClick={basculerMode}
+                title={modeAdmin
+                  ? "Voir l'application comme un coach"
+                  : 'Revenir en mode administrateur'}
+              >
+                {modeAdmin ? <ShieldCheck size={18} /> : <Shield size={18} />}
+                {modeAdmin ? 'MODE ADMIN' : 'MODE COACH'}
+              </button>
+            )}
+            <span className="user-name-tag">
+              {user.prenom}{' '}
+              <small>({estAdminDeDroit && !modeAdmin ? 'admin · vue coach' : user.role})</small>
+            </span>
             <button className="nav-pill btn-logout" onClick={handleLogout} title="Déconnexion">
               <LogOut color="#ff0000" size={18} />
             </button>

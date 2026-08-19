@@ -223,6 +223,15 @@ const PreparationSeance: React.FC<PreparationSeanceProps> = ({ planifId, onBack 
     return m;
   }, [data?.themes]);
 
+  // Le secteur d'un thème décide qui le travaille : sans lui, pas de vue par poste.
+  const secteurThemes = useMemo(() => {
+    const m: Record<number, string> = {};
+    for (const t of data?.themes ?? []) {
+      if (t.secteur_nom) m[t.id] = t.secteur_nom;
+    }
+    return m;
+  }, [data?.themes]);
+
   const groupedObjectives = data?.objectifs?.reduce<Record<string, SeanceObjectif[]>>((acc, obj) => {
     const key = obj.secteur_nom || "AUTRE";
     if (!acc[key]) acc[key] = [];
@@ -364,6 +373,7 @@ const PreparationSeance: React.FC<PreparationSeanceProps> = ({ planifId, onBack 
               dureeMinutes={dureeSeance}
               onChangerDuree={changerDuree}
               nomThemes={nomThemes}
+              secteurThemes={secteurThemes}
             />
           </div>
         )}

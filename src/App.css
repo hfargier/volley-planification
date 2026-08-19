@@ -1355,7 +1355,17 @@ to { opacity: 1; transform: translateY(0); }
     transition: 0.2s;
   }
   .nav-pill.active { background: var(--jsa-yellow); color: black; border-color: var(--jsa-yellow); }
-  
+
+  /* Bascule admin / coach. En mode coach le bouton devient franchement visible :
+     il faut qu'un admin voie tout de suite qu'il n'a plus ses droits à l'écran. */
+  .btn-mode-admin { border-color: #555; color: #bbb; font-size: 0.72rem; letter-spacing: 1px; }
+  .btn-mode-admin:hover { border-color: var(--jsa-yellow); color: var(--jsa-yellow); }
+  .btn-mode-admin.en-mode-coach {
+    background: rgba(255, 204, 0, 0.12);
+    border-color: var(--jsa-yellow);
+    color: var(--jsa-yellow);
+  }
+
   /* ==========================================================
      BIBLIOTHEQUE & CATALOGUE
      ========================================================== */
@@ -1380,6 +1390,75 @@ to { opacity: 1; transform: translateY(0); }
     margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.05);
     display: flex; justify-content: space-between; align-items: center;
   }
+
+  /* Un modèle masqué reste lisible mais visiblement en retrait : l'admin doit
+     repérer d'un coup d'œil ce que ses coachs ne voient pas. */
+  .modele-card-simple.modele-masque { opacity: 0.55; border-style: dashed; }
+  .modele-card-simple.modele-masque:hover { opacity: 1; }
+  .badge-masque {
+    display: inline-flex; align-items: center; gap: 4px;
+    margin-top: 8px; margin-left: 8px;
+    font-size: 0.6rem; font-weight: 900; letter-spacing: 1px;
+    padding: 3px 8px; border-radius: 4px;
+    background: #333; color: #bbb;
+  }
+
+  /* ==========================================================
+     RÉPARTITION DU TEMPS — VUE D'ENSEMBLE PAR POSTE
+     Une colonne par poste. Un thème occupe la plage des postes qui le
+     travaillent : toute la largeur s'il est commun, une portion sinon.
+     ========================================================== */
+  .charges-matrice { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+  .charges-matrice-entete,
+  .charges-matrice-ligne {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;
+  }
+  .charges-matrice-entete { margin-bottom: 2px; }
+  .charges-matrice-poste {
+    font-size: 0.58rem; font-weight: 900; letter-spacing: 1px;
+    text-transform: uppercase; color: #888; text-align: center;
+    padding-bottom: 6px; border-bottom: 1px solid #333;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .charges-matrice-bloc {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; min-width: 0;
+    background: #1c1c1c; border: 1px solid #333; border-left: 3px solid #555;
+    border-radius: 8px; padding: 9px 12px;
+  }
+  .charges-matrice-nom {
+    font-size: 0.78rem; font-weight: 700; color: #eee;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .charges-matrice-min {
+    font-size: 0.95rem; font-weight: 900; color: var(--jsa-yellow); white-space: nowrap;
+  }
+  .charges-matrice-detail {
+    display: flex; gap: 10px; flex-shrink: 0;
+    font-size: 0.6rem; letter-spacing: 0.5px; color: #999; white-space: nowrap;
+  }
+  .charges-matrice-detail strong { color: var(--jsa-yellow); font-size: 0.72rem; }
+  .charges-matrice-bloc.famille-technique { border-left-color: var(--jsa-yellow); }
+  .charges-matrice-bloc.famille-tactique { border-left-color: #3498db; }
+  .charges-matrice-bloc.famille-physique { border-left-color: #2ecc71; }
+
+  @media (max-width: 700px) {
+    .charges-matrice-poste { font-size: 0.5rem; letter-spacing: 0; }
+    .charges-matrice-bloc { flex-direction: column; align-items: flex-start; gap: 4px; padding: 7px 9px; }
+    .charges-matrice-nom { white-space: normal; }
+    .charges-matrice-detail { flex-wrap: wrap; gap: 6px; }
+  }
+
+  .modele-actions-admin { display: flex; gap: 8px; align-items: center; width: 100%; }
+  .btn-carte-admin {
+    display: flex; align-items: center; gap: 6px;
+    background: transparent; border: 1px solid #444; color: #bbb;
+    padding: 7px 12px; border-radius: 8px; cursor: pointer;
+    font-size: 0.68rem; font-weight: 900; letter-spacing: 1px; transition: 0.2s;
+  }
+  .btn-carte-admin:hover { border-color: var(--jsa-yellow); color: var(--jsa-yellow); }
+  .btn-carte-danger { margin-left: auto; }
+  .btn-carte-danger:hover { border-color: #ff4444; color: #ff4444; }
   
   .btn-use-model {
     background: var(--jsa-yellow); color: #000; border: none; padding: 8px 12px; border-radius: 8px; font-size: 0.75rem; font-weight: 800; display: flex; align-items: center; gap: 8px; cursor: pointer; width: 100%; justify-content: center; transition: transform 0.2s;

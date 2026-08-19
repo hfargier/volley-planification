@@ -204,8 +204,7 @@ const MesPlanifs: React.FC<MesPlanifsProps> = ({ user, onEdit, onView }) => {
       {aConfirmer && (
         <ConfirmDeleteModal
           nom={aConfirmer.nom || aConfirmer.nom_equipe}
-          equipe={aConfirmer.nom_equipe}
-          saison={aConfirmer.saison}
+          sousTitre={`${aConfirmer.nom_equipe} — ${aConfirmer.saison}`}
           busy={deletingId === aConfirmer.id}
           onCancel={() => setAConfirmer(null)}
           onConfirm={() => deletePlanif(aConfirmer)}

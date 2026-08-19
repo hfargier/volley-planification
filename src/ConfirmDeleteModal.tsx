@@ -4,8 +4,13 @@ import { AlertTriangle, Loader2, Trash2, X } from 'lucide-react';
 interface ConfirmDeleteModalProps {
   /** Nom à recopier pour débloquer la suppression. */
   nom: string;
-  equipe: string;
-  saison: string;
+  /** Sous-titre du récapitulatif : équipe et saison pour une planification,
+   *  niveau pour un modèle. Absent, la ligne n'est pas affichée. */
+  sousTitre?: string;
+  /** Titre de la modale, si l'objet supprimé n'est pas une planification. */
+  titre?: string;
+  /** Ce qui sera perdu, listé pour que la décision soit prise en connaissance. */
+  perte?: React.ReactNode;
   busy?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
@@ -13,8 +18,9 @@ interface ConfirmDeleteModalProps {
 
 const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
   nom,
-  equipe,
-  saison,
+  sousTitre,
+  titre = 'SUPPRIMER CETTE PLANIFICATION',
+  perte,
   busy = false,
   onCancel,
   onConfirm,
@@ -61,7 +67,7 @@ const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
       >
         <header className="modal-danger-header">
           <AlertTriangle size={20} />
-          <h3 id="titre-suppression">SUPPRIMER CETTE PLANIFICATION</h3>
+          <h3 id="titre-suppression">{titre}</h3>
           <button
             className="modal-close"
             onClick={onCancel}
@@ -75,13 +81,18 @@ const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
         <div className="modal-danger-body">
           <div className="modal-target-recap">
             <strong>{nom}</strong>
-            <span>{equipe} — {saison}</span>
+            {sousTitre && <span>{sousTitre}</span>}
           </div>
 
           <p className="modal-danger-warning">
-            Cette action est <strong>irréversible</strong>. Seront définitivement
-            perdus : les cycles, les objectifs, les thèmes de chaque semaine et
-            <strong> toutes les notes saisies sur le terrain</strong>.
+            Cette action est <strong>irréversible</strong>.{' '}
+            {perte ?? (
+              <>
+                Seront définitivement perdus : les cycles, les objectifs, les
+                thèmes de chaque semaine et
+                <strong> toutes les notes saisies sur le terrain</strong>.
+              </>
+            )}
           </p>
 
           <label className="modal-confirm-label" htmlFor="confirm-nom">

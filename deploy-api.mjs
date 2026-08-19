@@ -7,20 +7,9 @@ const cfg = loadConfig();
 
 const apiDir = fileURLToPath(new URL('./api', import.meta.url));
 const apiFile = fileURLToPath(new URL('./api/api_volley_seance.php', import.meta.url));
-const configFile = fileURLToPath(new URL('./api/config.php', import.meta.url));
 
 if (!existsSync(apiFile)) {
   console.error('❌ api/api_volley_seance.php est introuvable.');
-  process.exit(1);
-}
-
-// config.php porte les identifiants BDD : sans lui l'API renvoie une erreur 500.
-if (!existsSync(configFile)) {
-  console.error(
-    '❌ api/config.php est absent.\n' +
-      '   Créez-le depuis le modèle :\n' +
-      '     cp api/config.example.php api/config.php'
-  );
   process.exit(1);
 }
 
@@ -34,6 +23,9 @@ console.log(`💾 Sauvegarde : backups/${backupFile.split(/[\\/]/).pop()}`);
 
 console.log(`🚀 Déploiement de l'API → ${cfg.remoteRootApi}`);
 
+// config.php n'est PAS envoyé ici : il porte les identifiants de la base et sa
+// copie locale peut être périmée. L'écraser par inadvertance coupe le site.
+// Il se déploie à part, délibérément : npm run deploy:config
 await runDeploy(
   new FtpDeploy(),
   {
@@ -43,10 +35,12 @@ await runDeploy(
     port: cfg.port,
     localRoot: apiDir,
     remoteRoot: cfg.remoteRootApi,
-    // config.example.php reste local : inutile sur le serveur.
-    include: ['api_volley_seance.php', 'config.php'],
+    include: ['api_volley_seance.php'],
+    exclude: ['config.php', 'config.example.php', 'migrations/**'],
     deleteRemote: false,
     forcePasv: true,
   },
   'API'
 );
+
+console.log('ℹ️  config.php non touché. Pour le déployer : npm run deploy:config');

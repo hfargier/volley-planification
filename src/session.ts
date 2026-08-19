@@ -19,3 +19,20 @@ export const getStoredUser = (): UserData | null => {
 
   return null;
 };
+
+/**
+ * Un admin peut basculer en mode normal pour voir l'application comme un coach.
+ * Le choix est conservé d'une session à l'autre : sans ça, tester une équipe
+ * obligerait à rebasculer à chaque rechargement.
+ *
+ * Ce n'est qu'un confort d'affichage, pas une sécurité : le rôle réel reste
+ * celui du compte, et les contrôles doivent rester côté serveur.
+ */
+const CLE_MODE = 'modeAdmin';
+
+export const getModeAdmin = (): boolean => localStorage.getItem(CLE_MODE) !== 'off';
+
+export const setModeAdmin = (actif: boolean): void => {
+  if (actif) localStorage.removeItem(CLE_MODE);
+  else localStorage.setItem(CLE_MODE, 'off');
+};
